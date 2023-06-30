@@ -3,7 +3,7 @@ from torch import distributions, nn
 from typing import Callable, Dict, Set, Type
 
 from .core import condition, LogProbTracer
-from .util import _normalize_shape
+from .util import _normalize_shape, OptionalSize
 
 
 ParameterDict = Dict[str, torch.Tensor]
@@ -59,7 +59,7 @@ class DictDistribution:
     :class:`torch.distributions.Distribution`.
     """
     def entropy(self) -> torch.Tensor: ...
-    def rsample(self, sample_shape: torch.Size | None = None) -> ParameterDict: ...
+    def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict: ...
 
 
 class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], DictDistribution):
@@ -69,7 +69,7 @@ class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], Di
     def entropy(self) -> torch.Tensor:
         return sum(value.entropy().sum() for value in self.values())
 
-    def rsample(self, sample_shape: torch.Size | None = None) -> ParameterDict:
+    def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict:
         sample_shape = _normalize_shape(sample_shape)
         return {name: distribution.sample(sample_shape) for name, distribution in self.items()}
 

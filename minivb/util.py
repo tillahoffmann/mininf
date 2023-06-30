@@ -2,7 +2,10 @@ import torch
 from typing import Any, Dict
 
 
-def _normalize_shape(shape: torch.Size | None) -> torch.Size:
+OptionalSize = torch.Size | None
+
+
+def _normalize_shape(shape: OptionalSize) -> torch.Size:
     """
     Normalize tensor shapes.
     """

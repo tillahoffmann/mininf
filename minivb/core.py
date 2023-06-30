@@ -7,7 +7,7 @@ import torch.distributions.constraints
 from typing import Any, Callable, Dict, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 
-from .util import _format_dict_compact, _normalize_shape
+from .util import _format_dict_compact, _normalize_shape, OptionalSize
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -101,12 +101,12 @@ class TracerMixin(SingletonContextMixin):
         self._validate_parameters = _validate_parameters
 
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: torch.Size | None = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None) -> torch.Tensor:
         raise NotImplementedError
 
     def _assert_valid_parameter(self, value: torch.Tensor, name: str,
                                 distribution: torch.distributions.Distribution,
-                                sample_shape: torch.Size | None = None) -> None:
+                                sample_shape: OptionalSize = None) -> None:
         if not self._validate_parameters:
             return
         if not isinstance(value, torch.Tensor):
@@ -128,7 +128,7 @@ class SampleTracer(TracerMixin):
     Draw samples from a distribution.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: torch.Size | None = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None) -> torch.Tensor:
         sample_shape = _normalize_shape(sample_shape)
         value = state.get(name)
         if value is None:
@@ -147,7 +147,7 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
         self._validate = _validate
 
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: torch.Size | None = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None) -> torch.Tensor:
         value = state.get(name)
         if value is None:
             raise ValueError(f"Cannot evaluate log probability; variable '{name}' is missing. Did "
@@ -164,7 +164,7 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
         return _format_dict_compact(self)
 
 
-def sample(name: str, distribution: Distribution, sample_shape: torch.Size | None = None) \
+def sample(name: str, distribution: Distribution, sample_shape: OptionalSize = None) \
         -> torch.Tensor:
     """
     Draw a sample.

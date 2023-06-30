@@ -149,6 +149,9 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
 
     def sample(self, state: State, name: str, distribution: Distribution,
                sample_shape: OptionalSize = None) -> torch.Tensor:
+        if name in self:
+            raise RuntimeError(f"Log probability has already been evaluated for '{name}'. Did you "
+                               "call `sample` twice with the same variable name?")
         value = state.get(name)
         if value is None:
             raise ValueError(f"Cannot evaluate log probability; variable '{name}' is missing. Did "

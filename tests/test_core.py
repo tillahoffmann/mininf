@@ -151,3 +151,15 @@ def test_with_active_state() -> None:
 
     with state1:
         assert func() is state1
+
+
+def test_log_prob_sampled_twice() -> None:
+    @minivb.model
+    def sample_twice() -> None:
+        minivb.sample("x", torch.distributions.Normal(0, 1))
+        minivb.sample("x", torch.distributions.Normal(0, 1))
+
+    with minivb.core.State():
+        sample_twice()
+        with pytest.raises(RuntimeError, match="call `sample` twice"), minivb.core.LogProbTracer():
+            sample_twice()

@@ -228,6 +228,25 @@ def condition(model: Callable, **values: torch.Tensor) -> Callable:
 
     Returns:
         Conditioned model.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb import condition, sample
+            >>> import torch
+            >>> from torch.distributions import Normal
+
+            # Sampling from the model yields random values.
+            >>> def model() -> None:
+            ...     return sample("x", Normal(0, 1))
+            >>> model()
+            tensor(...)
+
+            # Sampling from the conditioned model always yields the same value.
+            >>> conditioned = condition(model, x=torch.as_tensor(0.3))
+            >>> conditioned()
+            tensor(0.3000)
     """
     @with_active_state
     @ft.wraps(model)

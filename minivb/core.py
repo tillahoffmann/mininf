@@ -143,10 +143,6 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
     """
     Evaluate the log probability of a state under the model.
     """
-    def __init__(self, *args, _validate: bool = True, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self._validate = _validate
-
     def sample(self, state: State, name: str, distribution: Distribution,
                sample_shape: OptionalSize = None) -> torch.Tensor:
         if name in self:

@@ -154,7 +154,6 @@ def test_with_active_state() -> None:
 
 
 def test_log_prob_sampled_twice() -> None:
-    @minivb.model
     def sample_twice() -> None:
         minivb.sample("x", torch.distributions.Normal(0, 1))
         minivb.sample("x", torch.distributions.Normal(0, 1))

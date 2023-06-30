@@ -236,17 +236,3 @@ def condition(model: Callable, **values: torch.Tensor) -> Callable:
         return model(*args, **kwargs)
 
     return _wrapper
-
-
-@with_active_state
-def model(state: State, program: Callable) -> Callable:
-    """
-    Declare a probabilistic program as a model with automatic state handling.
-
-    Args:
-        program: Probabilistic program to use as a model.
-
-    Returns:
-        Model with automatic state handling.
-    """
-    return program

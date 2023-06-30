@@ -4,7 +4,6 @@ import torch
 
 def test_linear_regression_forward_backward() -> None:
     # Declare the model.
-    @minivb.model
     def linear_regression(n: int, p: int) -> None:
         features = minivb.sample("features", torch.distributions.Normal(0, 1), (n, p))
         coefs = minivb.sample("coefs", torch.distributions.Normal(0, 1), (p,))

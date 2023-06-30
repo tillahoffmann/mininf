@@ -40,7 +40,7 @@ Let us define the model using minivb syntax. Similar to [Pyro](http://pyro.ai), 
 import minivb
 import torch
 
-@minivb.model
+
 def biased_coin_model() -> tuple[torch.Tensor, torch.Tensor]:
     rho = minivb.sample("rho", torch.distributions.Uniform(0, 1))
     x = minivb.sample("x", torch.distributions.Bernoulli(rho), [10])

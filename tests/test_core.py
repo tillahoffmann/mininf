@@ -79,7 +79,7 @@ def test_log_prob_missing_value() -> None:
 
 
 def test_log_prob_invalid_shape() -> None:
-    distribution = torch.distributions.Wishart(9, torch.eye(9))
+    distribution = torch.distributions.LKJCholesky(9, 4)
 
     def model():
         minivb.sample("x", distribution, (7, 8))
@@ -124,7 +124,7 @@ def test_condition() -> None:
 
 def test_validate_sample() -> None:
     def model() -> None:
-        minivb.sample("x", torch.distributions.Wishart(3, torch.eye(2)), (5, 7))
+        minivb.sample("x", torch.distributions.LKJCholesky(2, 4), (5, 7))
 
     with pytest.raises(TypeError, match="Expected a tensor"):
         minivb.condition(model, x="foo")()
@@ -134,7 +134,7 @@ def test_validate_sample() -> None:
         assert state["x"] == "foo"
 
     with pytest.raises(ValueError, match="Expected shape"):
-        minivb.condition(model, x=torch.distributions.Wishart(3, torch.eye(2)).sample())()
+        minivb.condition(model, x=torch.distributions.LKJCholesky(2, 4).sample())()
 
     with pytest.raises(ValueError, match="is not in the support"):
         minivb.condition(model, x=torch.randn(5, 7, 2, 2))()

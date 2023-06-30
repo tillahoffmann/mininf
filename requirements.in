@@ -1,0 +1,8 @@
+-e file:.
+matplotlib
+myst_parser
+pytest
+pytest-cov
+jupyter
+jupytext
+sphinx

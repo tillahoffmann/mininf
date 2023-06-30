@@ -6,3 +6,7 @@ tests :
 lint:
 	flake8
 	mypy minivb
+
+requirements.txt : requirements.in setup.py
+	pip-compile -v
+

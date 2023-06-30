@@ -116,7 +116,7 @@ class TracerMixin(SingletonContextMixin):
         expected_shape = sample_shape + distribution.batch_shape + distribution.event_shape
         if value.shape != expected_shape:
             raise ValueError(f"Expected shape {expected_shape} for parameter '{name}' but got "
-                             f"{value.shape}.")
+                             f"{tuple(value.shape)}.")
 
         support: torch.distributions.constraints.Constraint = distribution.support
         if not support.check(value).all():

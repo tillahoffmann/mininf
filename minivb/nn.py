@@ -1,3 +1,7 @@
+"""
+The :mod:`minivb.nn` module contains modules to evaluate the evidence lower bounds, construct
+distributions parameterized by learnable parameters, and other convenience functions and classes.
+"""
 import torch
 from torch import distributions, nn
 from typing import Callable, cast, Dict, Set, Type
@@ -6,18 +10,30 @@ from .core import condition, LogProbTracer
 from .util import _normalize_shape, OptionalSize
 
 
-ParameterDict = Dict[str, torch.Tensor]
+TensorDict = Dict[str, torch.Tensor]
 
 
 class ParameterizedDistribution(nn.Module):
     """
-    Parameterized distribution whose parameters can be learned.
+    Parameterized distribution with trainable parameters.
 
     Args:
         cls: Distribution type.
         _const: Names of parameters to be treated as constant (prefixed with `_` to avoid possible
             conflicts with distributions having a `const` parameter).
         **parameters: Parameter values passed to the distribution constructor.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb.nn import ParameterizedDistribution
+            >>> import torch
+            >>> from torch.distributions import Normal
+
+            >>> parameterized = ParameterizedDistribution(Normal, loc=0.5, scale=1.2)
+            >>> parameterized()
+            Normal(...)
     """
     def __init__(self, cls: Type[distributions.Distribution], *, _const: Set[str] | None = None,
                  **parameters: torch.Tensor) -> None:
@@ -46,6 +62,7 @@ class ParameterizedDistribution(nn.Module):
         self.distribution_parameters = nn.ParameterDict(distribution_parameters)
 
     def forward(self) -> distributions.Distribution:
+        """"""  # Hide `forward` docstring in documentation.
         # Transform parameters back to the constrained space.
         parameters = {}
         for name, value in self.distribution_parameters.items():
@@ -55,23 +72,50 @@ class ParameterizedDistribution(nn.Module):
         return self.distribution_cls(**parameters, **self.distribution_constants)
 
 
-class DictDistribution:
-    """
-    Distribution over dictionaries of parameters duck-typed to match
-    :class:`torch.distributions.Distribution`.
-    """
-    def entropy(self) -> torch.Tensor: ...  # type: ignore
-    def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict: ...  # type: ignore
-
-
-class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], DictDistribution):
+class FactorizedDistribution(Dict[str, torch.distributions.Distribution]):
     """
     Joint distributions comprising independent factors of named distributions.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb.nn import FactorizedDistribution
+            >>> from torch.distributions import Normal, Gamma
+
+            # Create a distribution with independent factors.
+            >>> distribution = FactorizedDistribution(mu=Normal(0, 1), sigma=Gamma(2, 2))
+            >>> distribution
+            {'mu': Normal(loc: 0.0, scale: 1.0), 'sigma': Gamma(concentration: 2.0, rate: 2.0)}
+
+            # Draw samples from all constituent distributions.
+            >>> distribution.rsample()
+            {'mu': tensor(...), 'sigma': tensor(...)}
+
+            # Evaluate the total entropy.
+            >>> distribution.entropy()
+            tensor(2.30...)
     """
     def entropy(self) -> torch.Tensor:
+        """
+        Evaluate the entropy of the distribution.
+
+        Returns:
+            Entropy of the distribution aggregated over all constituents.
+        """
         return cast(torch.Tensor, sum(value.entropy().sum() for value in self.values()))
 
-    def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict:
+    def rsample(self, sample_shape: OptionalSize = None) -> TensorDict:
+        """
+        Draw a reparameterized sample for each constituent distribution.
+
+        Args:
+            sample_shape: Shape of the sample to draw.
+
+        Returns:
+            Dictionary mapping names to samples with the desired shape drawn from each constituent
+            distribution.
+        """
         sample_shape = _normalize_shape(sample_shape)
         return {name: distribution.rsample(sample_shape) for name, distribution in self.items()}
 
@@ -79,13 +123,35 @@ class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], Di
 class EvidenceLowerBoundLoss(nn.Module):
     """
     Evaluate the negative evidence lower bound.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb import model, sample
+            >>> from minivb.nn import EvidenceLowerBoundLoss
+            >>> from torch.distributions import Normal
+
+            # Declare a simple model.
+            >>> @model
+            ... def simple() -> None:
+            ...     sample("x", Normal(0, 1))
+
+            # Define a posterior approximation and estimate negative ELBO.
+            >>> approx = Normal(0, 1)
+            >>> loss = EvidenceLowerBoundLoss()
+            >>> loss(simple, {"x": approx})
+            tensor(...)
     """
-    def forward(self, model: Callable,
-                approximation: DictDistribution | Dict[str, torch.distributions.Distribution]) \
-            -> torch.Tensor:
-        if isinstance(approximation, Dict) and not isinstance(approximation, nn.Module):
-            approximation = FactorizedDictDistribution(approximation)
+    def forward(self, model: Callable, approximation: torch.distributions.Distribution
+                | Dict[str, torch.distributions.Distribution]) -> torch.Tensor:
+        """"""  # Hide `forward` docstring in documentation.
+        if isinstance(approximation, Dict):
+            approximation = FactorizedDistribution(approximation)
         samples = approximation.rsample()
+        if not isinstance(samples, Dict):
+            raise TypeError("Expected a distribution which samples dictionaries of tensors but got "
+                            f"a sample of type {type(samples)}")
 
         # Get the entropy and evaluate the ELBO loss.
         with LogProbTracer() as log_prob:

@@ -1,5 +1,5 @@
 import minivb
-from minivb.nn import EvidenceLowerBoundLoss, FactorizedDictDistribution, ParameterizedDistribution
+from minivb.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution
 import numpy as np
 import pytest
 import torch
@@ -34,7 +34,7 @@ def test_parameterized_distribution(cls: Type[distributions.Distribution],
 def test_factorized_distribution() -> None:
     x = torch.distributions.Normal(0, 1)
     y = torch.distributions.Gamma(2 * torch.ones(5), 2)
-    distribution = FactorizedDictDistribution(x=x, y=y)
+    distribution = FactorizedDistribution(x=x, y=y)
     assert distribution.entropy() == x.entropy() + y.entropy().sum()
     sample = distribution.rsample([3])
     assert sample["x"].shape == (3,)
@@ -47,14 +47,20 @@ def test_evidence_lower_bound_loss_with_grad() -> None:
 
     approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0,
                                               scale=torch.ones(3))
-    negative_elbo = EvidenceLowerBoundLoss()
-    loss = negative_elbo(model, {"x": approximation()})
-    assert loss.grad_fn is not None
+    loss = EvidenceLowerBoundLoss()
+    loss_value = loss(model, {"x": approximation()})
+    assert loss_value.grad_fn is not None
 
-    assert loss.ndim == 0
-    assert np.isfinite(loss.item())
+    assert loss_value.ndim == 0
+    assert np.isfinite(loss_value.item())
 
     # Check back-propagation.
     assert all(value.grad is None for value in approximation.distribution_parameters.values())
-    loss.backward()
+    loss_value.backward()
     assert all(value.grad is not None for value in approximation.distribution_parameters.values())
+
+
+def test_evidence_lower_bound_wrong_distribution_type() -> None:
+    loss = EvidenceLowerBoundLoss()
+    with pytest.raises(TypeError, match="dictionaries of tensors"):
+        loss(None, torch.distributions.Normal(0, 1))

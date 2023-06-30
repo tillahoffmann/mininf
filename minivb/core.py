@@ -16,8 +16,9 @@ LOGGER = logging.getLogger(__name__)
 
 class SingletonContextMixin:
     """
-    Mixin to manage singletons, one for each unique :attr:`SINGLETON_KEY`. Inheriting classes must
-    override :attr:`SINGLETON_KEY` to declare the group they belong to.
+    Mixin to manage singleton contexts, one for each unique :attr:`SINGLETON_KEY`. Inheriting
+    classes must override :attr:`SINGLETON_KEY` to declare the singleton group they belong to.
+    Contexts are not re-entrant.
     """
     INSTANCES: Dict[str, SingletonContextMixin] = {}
     SINGLETON_KEY: str | None = None
@@ -174,6 +175,7 @@ def with_active_state(func: Callable) -> Callable:
     Returns:
         Callable wrapping `func` which ensures a state is active.
     """
+    @ft.wraps(func)
     def _wrapper(*args, **kwargs) -> Any:
         if (state := State.get_instance()) is not None:
             return func(state, *args, **kwargs)
@@ -190,11 +192,22 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     Draw a sample.
 
     Args:
+        name: Name of the random variable to sample.
         distribution: Distribution to sample from.
         sample_shape: Batch shape of the sample.
 
     Returns:
         A sample from the distribution with the desired shape.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb import sample
+            >>> from torch.distributions import Normal
+
+            >>> sample("x", Normal(0, 1), (3,))
+            tensor([..., ..., ...])
     """
     tracer = TracerMixin.get_instance()
     if tracer is None:
@@ -202,35 +215,35 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     return tracer.sample(state, name, distribution, sample_shape)
 
 
-def condition(func: Callable, **values: torch.Tensor) -> Callable:
+def condition(model: Callable, **values: torch.Tensor) -> Callable:
     """
     Condition a model on values.
 
     Args:
-        func: Model to condition.
+        model: Model to condition.
         **values: Values to condition on.
 
     Returns:
         Conditioned model.
     """
     @with_active_state
-    @ft.wraps(func)
+    @ft.wraps(model)
     def _wrapper(state, *args, **kwargs) -> Any:
         state.update(values)
-        return func(*args, **kwargs)
+        return model(*args, **kwargs)
 
     return _wrapper
 
 
 @with_active_state
-def model(state: State, func: Callable) -> Callable:
+def model(state: State, program: Callable) -> Callable:
     """
-    Declare a callable as a model to automatically handle state.
+    Declare a probabilistic program as a model with automatic state handling.
 
     Args:
-        func: Callable to use as a model.
+        program: Probabilistic program to use as a model.
 
     Returns:
         Model with automatic state handling.
     """
-    return func
+    return program

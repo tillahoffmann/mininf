@@ -1,4 +1,4 @@
-.PHONY: lint tests
+.PHONY: docs doctests lint tests
 
 tests :
 	pytest -v --cov=minivb --cov-report=term-missing --cov-fail-under=100
@@ -10,3 +10,9 @@ lint:
 requirements.txt : requirements.in setup.py
 	pip-compile -v
 
+docs :
+	rm -rf docs/_build
+	sphinx-build -n . docs/_build
+
+doctests :
+	sphinx-build -b doctest . docs/_build

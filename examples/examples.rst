@@ -1,0 +1,6 @@
+Examples
+========
+
+.. toctree::
+
+    biased-coin

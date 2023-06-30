@@ -9,7 +9,11 @@ def _normalize_shape(shape: OptionalSize) -> torch.Size:
     """
     Normalize tensor shapes.
     """
-    return torch.Size() if shape is None else shape
+    if shape is None:
+        return torch.Size()
+    if isinstance(shape, torch.Size):
+        return shape
+    return torch.Size(shape)
 
 
 def _format_dict_compact(value: Dict[str, Any | torch.Tensor]) -> str:

@@ -73,14 +73,18 @@ class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], Di
 
     def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict:
         sample_shape = _normalize_shape(sample_shape)
-        return {name: distribution.sample(sample_shape) for name, distribution in self.items()}
+        return {name: distribution.rsample(sample_shape) for name, distribution in self.items()}
 
 
 class EvidenceLowerBoundLoss(nn.Module):
     """
     Evaluate the negative evidence lower bound.
     """
-    def forward(self, model: Callable, approximation: DictDistribution) -> torch.Tensor:
+    def forward(self, model: Callable,
+                approximation: DictDistribution | Dict[str, torch.distributions.Distribution]) \
+            -> torch.Tensor:
+        if isinstance(approximation, Dict) and not isinstance(approximation, nn.Module):
+            approximation = FactorizedDictDistribution(approximation)
         samples = approximation.rsample()
 
         # Get the entropy and evaluate the ELBO loss.

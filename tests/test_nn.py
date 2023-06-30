@@ -41,13 +41,20 @@ def test_factorized_distribution() -> None:
     assert sample["y"].shape == (3, 5)
 
 
-def test_evidence_lower_bound_loss() -> None:
+def test_evidence_lower_bound_loss_with_grad() -> None:
     def model() -> None:
         minivb.sample("x", torch.distributions.Normal(0, 1), (3,))
 
-    approximation = FactorizedDictDistribution(x=torch.distributions.Normal(torch.zeros(3), 1))
+    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0,
+                                              scale=torch.ones(3))
     negative_elbo = EvidenceLowerBoundLoss()
-    loss = negative_elbo(model, approximation)
+    loss = negative_elbo(model, {"x": approximation()})
+    assert loss.grad_fn is not None
 
     assert loss.ndim == 0
-    assert np.isfinite(loss)
+    assert np.isfinite(loss.item())
+
+    # Check back-propagation.
+    assert all(value.grad is None for value in approximation.distribution_parameters.values())
+    loss.backward()
+    assert all(value.grad is not None for value in approximation.distribution_parameters.values())

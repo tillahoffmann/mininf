@@ -128,19 +128,18 @@ class EvidenceLowerBoundLoss(nn.Module):
 
         .. doctest::
 
-            >>> from minivb import model, sample
+            >>> from minivb import sample
             >>> from minivb.nn import EvidenceLowerBoundLoss
             >>> from torch.distributions import Normal
 
             # Declare a simple model.
-            >>> @model
-            ... def simple() -> None:
+            >>> def model() -> None:
             ...     sample("x", Normal(0, 1))
 
             # Define a posterior approximation and estimate negative ELBO.
             >>> approx = Normal(0, 1)
             >>> loss = EvidenceLowerBoundLoss()
-            >>> loss(simple, {"x": approx})
+            >>> loss(model, {"x": approx})
             tensor(...)
     """
     def forward(self, model: Callable, approximation: torch.distributions.Distribution

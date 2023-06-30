@@ -16,7 +16,7 @@ def test_linear_regression_forward_backward() -> None:
     assert linear_regression(5, 2) is None
 
     # Sample from the model (implicitly using the `SampleTracer`).
-    with minivb.State() as state:
+    with minivb.core.State() as state:
         assert linear_regression(50, 3) is None
 
     expected_shapes = {
@@ -28,7 +28,7 @@ def test_linear_regression_forward_backward() -> None:
     assert {key: value.shape for key, value in state.items()} == expected_shapes
 
     # Evaluate the log probabilities.
-    with minivb.LogProbTracer() as log_prob, state:
+    with minivb.core.LogProbTracer() as log_prob, state:
         linear_regression(50, 3)
 
     assert {key: value.shape for key, value in log_prob.items()} == expected_shapes

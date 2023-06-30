@@ -1,5 +1,7 @@
 -e file:.
+flake8
 matplotlib
+mypy
 myst_parser
 pytest
 pytest-cov

@@ -69,7 +69,7 @@ class ParameterizedDistribution(nn.Module):
             arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
                                   self.distribution_cls.arg_constraints)[name]
             parameters[name] = distributions.transform_to(arg_constraint)(value)
-        return self.distribution_cls(**parameters, **self.distribution_constants)
+        return self.distribution_cls(**parameters, **self.distribution_constants)  # type: ignore
 
 
 class FactorizedDistribution(Dict[str, torch.distributions.Distribution]):

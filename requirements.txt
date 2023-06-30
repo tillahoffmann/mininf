@@ -69,6 +69,8 @@ fastjsonschema==2.17.1
     # via nbformat
 filelock==3.12.2
     # via torch
+flake8==6.0.0
+    # via -r requirements.in
 fonttools==4.40.0
     # via matplotlib
 fqdn==1.5.1
@@ -177,6 +179,8 @@ matplotlib-inline==0.1.6
     # via
     #   ipykernel
     #   ipython
+mccabe==0.7.0
+    # via flake8
 mdit-py-plugins==0.4.0
     # via
     #   jupytext
@@ -187,6 +191,10 @@ mistune==3.0.1
     # via nbconvert
 mpmath==1.3.0
     # via sympy
+mypy==1.4.1
+    # via -r requirements.in
+mypy-extensions==1.0.0
+    # via mypy
 myst-parser==2.0.0
     # via -r requirements.in
 nbclassic==1.0.0
@@ -265,8 +273,12 @@ ptyprocess==0.7.0
     #   terminado
 pure-eval==0.2.2
     # via stack-data
+pycodestyle==2.10.0
+    # via flake8
 pycparser==2.21
     # via cffi
+pyflakes==3.0.1
+    # via flake8
 pygments==2.15.1
     # via
     #   ipython
@@ -368,6 +380,7 @@ toml==0.10.2
 tomli==2.0.1
     # via
     #   coverage
+    #   mypy
     #   pytest
 torch==2.0.1
     # via minivb
@@ -398,7 +411,9 @@ traitlets==5.9.0
     #   notebook
     #   qtconsole
 typing-extensions==4.7.0
-    # via torch
+    # via
+    #   mypy
+    #   torch
 uri-template==1.3.0
     # via jsonschema
 urllib3==2.0.3

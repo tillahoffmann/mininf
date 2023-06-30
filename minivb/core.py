@@ -4,7 +4,7 @@ import logging
 import torch
 from torch.distributions import Distribution
 import torch.distributions.constraints
-from typing import Any, Callable, Dict, Literal, overload, Type, TypeVar
+from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 
 from .util import _format_dict_compact, _normalize_shape, OptionalSize
@@ -118,7 +118,7 @@ class TracerMixin(SingletonContextMixin):
             raise ValueError(f"Expected shape {expected_shape} for parameter '{name}' but got "
                              f"{tuple(value.shape)}.")
 
-        support: torch.distributions.constraints.Constraint = distribution.support
+        support = cast(torch.distributions.constraints.Constraint, distribution.support)
         if not support.check(value).all():
             raise ValueError(f"Parameter '{name}' is not in the support of {distribution}.")
 
@@ -142,7 +142,7 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
     """
     Evaluate the log probability of a state under the model.
     """
-    def __init__(self, *args, _validate: bool = True, **kwargs) -> __init__:
+    def __init__(self, *args, _validate: bool = True, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._validate = _validate
 
@@ -158,13 +158,33 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
 
     @property
     def total(self) -> torch.Tensor:
-        return sum(value.sum() for value in self.values())
+        return cast(torch.Tensor, sum(value.sum() for value in self.values()))
 
     def __repr__(self) -> str:
         return _format_dict_compact(self)
 
 
-def sample(name: str, distribution: Distribution, sample_shape: OptionalSize = None) \
+def with_active_state(func: Callable) -> Callable:
+    """
+    Decorate a function to pass an active state as its first argument.
+
+    Args:
+        func: Callable taking a :class:`.State` object as its first argument.
+
+    Returns:
+        Callable wrapping `func` which ensures a state is active.
+    """
+    def _wrapper(*args, **kwargs) -> Any:
+        if (state := State.get_instance()) is not None:
+            return func(state, *args, **kwargs)
+        with State() as state:
+            return func(state, *args, **kwargs)
+
+    return _wrapper
+
+
+@with_active_state
+def sample(state: State, name: str, distribution: Distribution, sample_shape: OptionalSize = None) \
         -> torch.Tensor:
     """
     Draw a sample.
@@ -176,7 +196,6 @@ def sample(name: str, distribution: Distribution, sample_shape: OptionalSize = N
     Returns:
         A sample from the distribution with the desired shape.
     """
-    state = State.get_instance(True)
     tracer = TracerMixin.get_instance()
     if tracer is None:
         tracer = SampleTracer()
@@ -194,22 +213,19 @@ def condition(func: Callable, **values: torch.Tensor) -> Callable:
     Returns:
         Conditioned model.
     """
+    @with_active_state
     @ft.wraps(func)
-    def _wrapper(*args, **kwargs) -> Any:
-        state = State.get_instance()
-        if state is None:
-            with State(values):
-                return func(*args, **kwargs)
-
+    def _wrapper(state, *args, **kwargs) -> Any:
         state.update(values)
         return func(*args, **kwargs)
 
     return _wrapper
 
 
-def model(func: Callable) -> Callable:
+@with_active_state
+def model(state: State, func: Callable) -> Callable:
     """
-    Declare a callable as a model to handle state automatically.
+    Declare a callable as a model to automatically handle state.
 
     Args:
         func: Callable to use as a model.
@@ -217,12 +233,4 @@ def model(func: Callable) -> Callable:
     Returns:
         Model with automatic state handling.
     """
-    @ft.wraps(func)
-    def _wrapper(*args, **kwargs) -> Any:
-        state = State.get_instance()
-        if state is None:
-            with State():
-                return func(*args, **kwargs)
-        return func(*args, **kwargs)
-
-    return _wrapper
+    return func

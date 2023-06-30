@@ -138,3 +138,15 @@ def test_validate_sample() -> None:
 
     with pytest.raises(ValueError, match="is not in the support"):
         minivb.condition(model, x=torch.randn(5, 7, 2, 2))()
+
+
+def test_with_active_state() -> None:
+    @minivb.core.with_active_state
+    def func(state: minivb.State) -> minivb.State:
+        return state
+
+    state1 = minivb.State()
+    assert func() is not None and func() is not state1
+
+    with state1:
+        assert func() is state1

@@ -1,6 +1,6 @@
 import torch
 from torch import distributions, nn
-from typing import Callable, Dict, Set, Type
+from typing import Callable, cast, Dict, Set, Type
 
 from .core import condition, LogProbTracer
 from .util import _normalize_shape, OptionalSize
@@ -26,29 +26,31 @@ class ParameterizedDistribution(nn.Module):
 
         # Iterate over all parameters and split them into constants and learnable parameters.
         _const = _const or set()
-        self.distribution_constants = {}
-        self.distribution_parameters = {}
+        self.distribution_constants: Dict[str, torch.Tensor] = {}
+        distribution_parameters = {}
 
         for name, value in parameters.items():
             # Treat parameters as constants if labeled as such or constraints are missing.
-            if name in _const or name not in cls.arg_constraints:
+            if name in _const or name not in cast(Dict, cls.arg_constraints):
                 self.distribution_constants[name] = value
                 continue
 
             # Transform to an unconstrained space and label as parameters.
             if not torch.is_tensor(value):
                 value = torch.as_tensor(value, dtype=torch.get_default_dtype())
-            arg_constraint = cls.arg_constraints[name]
+            arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
+                                  cls.arg_constraints)[name]
             value = distributions.transform_to(arg_constraint).inv(value)
-            self.distribution_parameters[name] = nn.Parameter(value)
+            distribution_parameters[name] = nn.Parameter(value)
 
-        self.distribution_parameters = nn.ParameterDict(self.distribution_parameters)
+        self.distribution_parameters = nn.ParameterDict(distribution_parameters)
 
     def forward(self) -> distributions.Distribution:
         # Transform parameters back to the constrained space.
         parameters = {}
         for name, value in self.distribution_parameters.items():
-            arg_constraint = self.distribution_cls.arg_constraints[name]
+            arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
+                                  self.distribution_cls.arg_constraints)[name]
             parameters[name] = distributions.transform_to(arg_constraint)(value)
         return self.distribution_cls(**parameters, **self.distribution_constants)
 
@@ -58,8 +60,8 @@ class DictDistribution:
     Distribution over dictionaries of parameters duck-typed to match
     :class:`torch.distributions.Distribution`.
     """
-    def entropy(self) -> torch.Tensor: ...
-    def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict: ...
+    def entropy(self) -> torch.Tensor: ...  # type: ignore
+    def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict: ...  # type: ignore
 
 
 class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], DictDistribution):
@@ -67,7 +69,7 @@ class FactorizedDictDistribution(Dict[str, torch.distributions.Distribution], Di
     Joint distributions comprising independent factors of named distributions.
     """
     def entropy(self) -> torch.Tensor:
-        return sum(value.entropy().sum() for value in self.values())
+        return cast(torch.Tensor, sum(value.entropy().sum() for value in self.values()))
 
     def rsample(self, sample_shape: OptionalSize = None) -> ParameterDict:
         sample_shape = _normalize_shape(sample_shape)

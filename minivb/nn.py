@@ -7,10 +7,10 @@ from torch import distributions, nn
 from typing import Callable, cast, Dict, Set, Type
 
 from .core import condition, LogProbTracer
-from .util import _normalize_shape, OptionalSize
+from .util import _normalize_shape, OptionalSize, TensorDict
 
 
-TensorDict = Dict[str, torch.Tensor]
+DistributionDict = Dict[str, torch.distributions.Distribution]
 
 
 class ParameterizedDistribution(nn.Module):
@@ -42,7 +42,7 @@ class ParameterizedDistribution(nn.Module):
 
         # Iterate over all parameters and split them into constants and learnable parameters.
         _const = _const or set()
-        self.distribution_constants: Dict[str, torch.Tensor] = {}
+        self.distribution_constants: TensorDict = {}
         distribution_parameters = {}
 
         for name, value in parameters.items():
@@ -77,7 +77,7 @@ class ParameterizedDistribution(nn.Module):
         return self.distribution_cls(**parameters, **self.distribution_constants)  # type: ignore
 
 
-class FactorizedDistribution(Dict[str, torch.distributions.Distribution]):
+class FactorizedDistribution(DistributionDict):
     """
     Joint distributions comprising independent factors of named distributions.
 
@@ -161,8 +161,8 @@ class EvidenceLowerBoundLoss(nn.Module):
             >>> loss(model, {"x": approx})
             tensor(...)
     """
-    def forward(self, model: Callable, approximation: torch.distributions.Distribution
-                | Dict[str, torch.distributions.Distribution]) -> torch.Tensor:
+    def forward(self, model: Callable,
+                approximation: torch.distributions.Distribution | DistributionDict) -> torch.Tensor:
         """"""  # Hide `forward` docstring in documentation.
         if isinstance(approximation, Dict):
             approximation = FactorizedDistribution(approximation)

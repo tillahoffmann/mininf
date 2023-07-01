@@ -1,10 +1,10 @@
 import minivb
-from minivb.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution
+from minivb.util import TensorDict
 import numpy as np
 import pytest
 import torch
 from torch import distributions
-from typing import Dict, Set, Type
+from typing import Set, Type
 
 
 @pytest.mark.parametrize("cls, params, _const, grads", [
@@ -12,9 +12,8 @@ from typing import Dict, Set, Type
     (distributions.Normal, {"loc": torch.randn(3), "scale": torch.ones(2, 1)}, {"loc"}, {"scale"}),
     (distributions.LKJCholesky, {"dim": 3, "concentration": 9}, set(), {"concentration"}),
 ])
-def test_parameterized_distribution(cls: Type[distributions.Distribution],
-                                    params: Dict[str, torch.Tensor], _const: Set[str],
-                                    grads: Set[str]) -> None:
+def test_parameterized_distribution(cls: Type[distributions.Distribution], params: TensorDict,
+                                    _const: Set[str], grads: Set[str]) -> None:
     # Construct the distribution.
     pdist = ParameterizedDistribution(cls, _const=_const, **params)
     dist = pdist()

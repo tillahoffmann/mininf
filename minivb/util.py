@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 
 OptionalSize = torch.Size | None
+TensorDict = Dict[str, torch.Tensor]
 
 
 def _normalize_shape(shape: OptionalSize) -> torch.Size:

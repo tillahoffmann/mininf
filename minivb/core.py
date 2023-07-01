@@ -7,7 +7,7 @@ import torch.distributions.constraints
 from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 
-from .util import _format_dict_compact, _normalize_shape, OptionalSize
+from .util import _format_dict_compact, _normalize_shape, OptionalSize, TensorDict
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -171,7 +171,7 @@ class SampleTracer(TracerMixin):
         return value
 
 
-class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
+class LogProbTracer(TracerMixin, TensorDict):
     """
     Evaluate the log probability of a state under the model.
     """

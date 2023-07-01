@@ -69,3 +69,10 @@ def test_evidence_lower_bound_wrong_distribution_type() -> None:
     loss = EvidenceLowerBoundLoss()
     with pytest.raises(TypeError, match="dictionaries of tensors"):
         loss(None, torch.distributions.Normal(0, 1))
+
+
+def test_parameterized_distribution_no_exposed_parameters() -> None:
+    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0, scale=1)
+    distribution = approximation()
+    assert not isinstance(distribution.loc, torch.nn.Parameter)
+    assert not isinstance(distribution.scale, torch.nn.Parameter)

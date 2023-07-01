@@ -68,7 +68,12 @@ class ParameterizedDistribution(nn.Module):
         for name, value in self.distribution_parameters.items():
             arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
                                   self.distribution_cls.arg_constraints)[name]
-            parameters[name] = distributions.transform_to(arg_constraint)(value)
+            transform = distributions.transform_to(arg_constraint)
+            # Multiply by one if the transform is empty so we don't expose parameters directly.
+            if isinstance(transform, torch.distributions.ComposeTransform) and not transform.parts:
+                parameters[name] = 1 * value
+            else:
+                parameters[name] = transform(value)
         return self.distribution_cls(**parameters, **self.distribution_constants)  # type: ignore
 
 

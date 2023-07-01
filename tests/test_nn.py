@@ -36,9 +36,14 @@ def test_factorized_distribution() -> None:
     y = torch.distributions.Gamma(2 * torch.ones(5), 2)
     distribution = FactorizedDistribution(x=x, y=y)
     assert distribution.entropy() == x.entropy() + y.entropy().sum()
+
     sample = distribution.rsample([3])
     assert sample["x"].shape == (3,)
     assert sample["y"].shape == (3, 5)
+
+    sample = distribution.sample([7])
+    assert sample["x"].shape == (7,)
+    assert sample["y"].shape == (7, 5)
 
 
 def test_evidence_lower_bound_loss_with_grad() -> None:

@@ -119,6 +119,20 @@ class FactorizedDistribution(Dict[str, torch.distributions.Distribution]):
         sample_shape = _normalize_shape(sample_shape)
         return {name: distribution.rsample(sample_shape) for name, distribution in self.items()}
 
+    def sample(self, sample_shape: OptionalSize = None) -> TensorDict:
+        """
+        Draw a sample for each constituent distribution.
+
+        Args:
+            sample_shape: Shape of the sample to draw.
+
+        Returns:
+            Dictionary mapping names to samples with the desired shape drawn from each constituent
+            distribution.
+        """
+        sample_shape = _normalize_shape(sample_shape)
+        return {name: distribution.sample(sample_shape) for name, distribution in self.items()}
+
 
 class EvidenceLowerBoundLoss(nn.Module):
     """

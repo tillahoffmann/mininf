@@ -16,6 +16,7 @@ exclude_patterns = [
     "**/.ipynb_checkpoints",
     "**/.jupyter_cache",
     "**/jupyter_execute",
+    "playground",
 ]
 nitpick_ignore = [
     ("py:class", "torch.Size"),

@@ -13,6 +13,19 @@ from .util import _normalize_shape, OptionalSize, TensorDict
 DistributionDict = Dict[str, torch.distributions.Distribution]
 
 
+def _is_identity_transform(transform: distributions.Transform) -> bool:
+    """
+    Determine whether a transform is the identity transform.
+
+    Args:
+        transform: Transform to check.
+
+    Returns:
+        Whether the transform is the identity transform.
+    """
+    return isinstance(transform, torch.distributions.ComposeTransform) and not transform.parts
+
+
 class ParameterizedDistribution(nn.Module):
     """
     Parameterized distribution with trainable parameters.
@@ -21,6 +34,9 @@ class ParameterizedDistribution(nn.Module):
         cls: Distribution type.
         _const: Names of parameters to be treated as constant (prefixed with `_` to avoid possible
             conflicts with distributions having a `const` parameter).
+        _clone: Clone parameter tensors if they are not modified by transforming parameters to an
+            unconstrained space. This ensures training does not modify inputs, e.g., if parameters
+            are initialized based on data.
         **parameters: Parameter values passed to the distribution constructor.
 
     Example:
@@ -36,7 +52,7 @@ class ParameterizedDistribution(nn.Module):
             Normal(...)
     """
     def __init__(self, cls: Type[distributions.Distribution], *, _const: Set[str] | None = None,
-                 **parameters: torch.Tensor) -> None:
+                 _clone: bool = True, **parameters: torch.Tensor) -> None:
         super().__init__()
         self.distribution_cls = cls
 
@@ -56,7 +72,11 @@ class ParameterizedDistribution(nn.Module):
                 value = torch.as_tensor(value, dtype=torch.get_default_dtype())
             arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
                                   cls.arg_constraints)[name]
-            value = distributions.transform_to(arg_constraint).inv(value)
+            transform = distributions.transform_to(arg_constraint)
+            if _is_identity_transform(transform) and _clone:
+                value = 1 * value
+            else:
+                value = transform.inv(value)
             distribution_parameters[name] = nn.Parameter(value)
 
         self.distribution_parameters = nn.ParameterDict(distribution_parameters)
@@ -70,7 +90,7 @@ class ParameterizedDistribution(nn.Module):
                                   self.distribution_cls.arg_constraints)[name]
             transform = distributions.transform_to(arg_constraint)
             # Multiply by one if the transform is empty so we don't expose parameters directly.
-            if isinstance(transform, torch.distributions.ComposeTransform) and not transform.parts:
+            if _is_identity_transform(transform):
                 parameters[name] = 1 * value
             else:
                 parameters[name] = transform(value)

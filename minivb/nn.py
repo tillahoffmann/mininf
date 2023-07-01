@@ -201,7 +201,8 @@ class EvidenceLowerBoundLoss(nn.Module):
 
         # Get the entropy and evaluate the ELBO loss.
         with LogProbTracer() as log_prob:
-            condition(model, **samples)()
+            # Ignoring type checks here because mypy gets confused about the dictionary expansion.
+            condition(model, **samples)()  # type: ignore
         elbo = log_prob.total + approximation.entropy()
 
         return - elbo

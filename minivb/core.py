@@ -83,12 +83,24 @@ class SingletonContextMixin:
 
 class State(Dict[str, Any], SingletonContextMixin):
     """
-    Variables of a model.
+    Parameters of a model.
     """
     SINGLETON_KEY = "state"
 
     def __repr__(self) -> str:
         return _format_dict_compact(self)
+
+    def subset(self, *names: str) -> State:
+        """
+        Extract a subset of parameters from the state.
+
+        Args:
+            names: Names of parameters to extract.
+
+        Returns:
+            State comprising the desired parameters.
+        """
+        return State({name: self[name] for name in names})
 
 
 class TracerMixin(SingletonContextMixin):

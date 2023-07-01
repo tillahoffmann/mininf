@@ -168,3 +168,11 @@ def test_log_prob_sampled_twice() -> None:
         sample_twice()
         with pytest.raises(RuntimeError, match="call `sample` twice"), minivb.core.LogProbTracer():
             sample_twice()
+
+
+def test_state_subset() -> None:
+    state = minivb.State({"a": torch.randn(3), "b": torch.randn(4), "c": torch.rand(7)})
+    subset = state.subset("a", "b")
+    assert set(subset) == {"a", "b"}
+    for key, value in subset.items():
+        assert value is state[key]

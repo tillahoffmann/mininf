@@ -122,6 +122,12 @@ def test_condition() -> None:
 
     assert minivb.condition(model, x=torch.as_tensor(0.25))() == 0.25
 
+    # Test conditioning with dictionaries and ensure precedence is right to left.
+    subset = {"x": torch.as_tensor(0.1)}
+    assert minivb.condition(model, subset)() == 0.1
+    assert minivb.condition(model, subset, {"x": torch.as_tensor(0.8)})() == 0.8
+    assert minivb.condition(model, subset, x=torch.as_tensor(0.7))() == 0.7
+
 
 def test_validate_sample() -> None:
     def model() -> None:

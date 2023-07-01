@@ -12,7 +12,7 @@ requirements.txt : requirements.in setup.py
 
 docs :
 	rm -rf docs/_build
-	sphinx-build -n . docs/_build
+	sphinx-build -vn . docs/_build
 
 doctests :
 	sphinx-build -b doctest . docs/_build

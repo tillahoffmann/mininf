@@ -1,8 +1,9 @@
 project = "minivb"
 author = "Till Hoffmann"
 copyright = "since 2023"
+html_theme = "pydata_sphinx_theme"
 extensions = [
-    "myst_parser",
+    "myst_nb",
     "sphinx.ext.autodoc",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
@@ -13,11 +14,18 @@ master_doc = "README"
 exclude_patterns = [
     ".pytest_cache",
     "**/.ipynb_checkpoints",
+    "**/.jupyter_cache",
+    "**/jupyter_execute",
 ]
+add_module_names = False
 autodoc_typehints_format = "short"
 myst_enable_extensions = [
     "dollarmath",
 ]
+nb_execution_mode = "cache"
+nb_execution_timeout = 60
+nb_execution_allow_errors = False
+nb_execution_raise_on_error = True
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "torch": ("https://pytorch.org/docs/stable/", None),

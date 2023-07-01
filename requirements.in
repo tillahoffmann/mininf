@@ -2,7 +2,8 @@
 flake8
 matplotlib
 mypy
-myst_parser
+myst-nb
+pydata-sphinx-theme
 pytest
 pytest-cov
 jupyter

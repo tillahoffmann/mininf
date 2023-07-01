@@ -155,5 +155,7 @@ cython_debug/
 # Custom ignore rules
 *.ipynb
 .DS_Store
+.jupyter_cache
 .vscode
+jupyter_execute/
 playground/

@@ -175,3 +175,20 @@ def test_state_subset() -> None:
     assert set(subset) == {"a", "b"}
     for key, value in subset.items():
         assert value is state[key]
+
+
+@pytest.mark.parametrize("strict", [False, True])
+def test_condition_conflict(strict: bool) -> None:
+    def model() -> None:
+        return minivb.sample("x", torch.distributions.Normal(0, 1))
+
+    conditioned1 = minivb.condition(model, x=torch.as_tensor(0.1), _strict=strict)
+    assert conditioned1() == 0.1
+
+    conditioned2 = minivb.condition(conditioned1, x=torch.as_tensor(0.7))
+    if strict:
+        with pytest.raises(ValueError, match="Cannot update"):
+            conditioned2()
+    else:
+        # The first conditioning statement takes precedence.
+        assert conditioned2() == 0.1

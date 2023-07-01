@@ -246,14 +246,22 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     return tracer.sample(state, name, distribution, sample_shape)
 
 
-def condition(model: Callable, values: TensorDict | None = None, **kwargs: torch.Tensor) \
-        -> Callable:
+def condition(model: Callable, values: TensorDict | None = None, *, _strict: bool = True,
+              **kwargs: torch.Tensor) -> Callable:
     """
     Condition a model on values.
+
+    .. note::
+
+        The first conditioning statement takes precedence if a parameter is conditioned multiple
+        times and `_strict` is `False`. If `_strict` is `True`, conditioning multiple times raises
+        an exception.
 
     Args:
         model: Model to condition.
         values: Values to condition on as a dictionary of tensors.
+        _strict: Enforce that each parameter is conditioned on at most once (prefixed with `_` to
+            avoid possible conflicts with states having a `strict` key).
         **kwargs: Values to condition on as keyword arguments.
 
     Returns:
@@ -284,7 +292,12 @@ def condition(model: Callable, values: TensorDict | None = None, **kwargs: torch
 
     @with_active_state
     @ft.wraps(model)
-    def _wrapper(state, *args, **kwargs) -> Any:
+    def _wrapper(state: State, *args, **kwargs) -> Any:
+        if _strict:
+            conflict = set(state) & set(values)
+            if conflict:
+                raise ValueError(f"Cannot update state {state} because it already has parameters "
+                                 f"{conflict}.")
         state.update(values)
         return model(*args, **kwargs)
 

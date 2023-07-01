@@ -139,6 +139,34 @@ class FactorizedDistribution(DistributionDict):
         return {name: distribution.sample(sample_shape) for name, distribution in self.items()}
 
 
+class ParameterizedFactorizedDistribution(nn.ModuleDict):
+    """
+    Dictionary of parameterized distribution with trainable parameters.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb.nn import ParameterizedDistribution, ParameterizedFactorizedDistribution
+            >>> from torch.distributions import Gamma, Normal
+
+            >>> distributions = ParameterizedFactorizedDistribution(
+            ...     x=ParameterizedDistribution(Normal, loc=0, scale=1),
+            ...     y=ParameterizedDistribution(Gamma, concentration=2, rate=2),
+            ... )
+            >>> distributions()
+            {'x': Normal(loc: 0.0, scale: 1.0), 'y': Gamma(concentration: 2.0, rate: 2.0)}
+    """
+    def __init__(self, arg: Dict[str, ParameterizedDistribution] | None = None,
+                 **kwargs: ParameterizedDistribution) -> None:
+        arg = arg or {}
+        arg.update(kwargs)
+        super().__init__(arg)
+
+    def forward(self) -> FactorizedDistribution:
+        return FactorizedDistribution({name: distribution() for name, distribution in self.items()})
+
+
 class EvidenceLowerBoundLoss(nn.Module):
     """
     Evaluate the negative evidence lower bound.

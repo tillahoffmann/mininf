@@ -1,4 +1,6 @@
 import minivb
+from minivb.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution, \
+    ParameterizedFactorizedDistribution
 from minivb.util import TensorDict
 import numpy as np
 import pytest
@@ -75,3 +77,13 @@ def test_parameterized_distribution_no_exposed_parameters() -> None:
     distribution = approximation()
     assert not isinstance(distribution.loc, torch.nn.Parameter)
     assert not isinstance(distribution.scale, torch.nn.Parameter)
+
+
+def test_factorized_parameterized_distribution() -> None:
+    module = ParameterizedFactorizedDistribution(
+        {"a": ParameterizedDistribution(torch.distributions.Normal, loc=0, scale=1)},
+        b=ParameterizedDistribution(torch.distributions.Gamma, concentration=3, rate=2),
+    )
+    assert set(module) == {"a", "b"}
+    assert isinstance(module()["a"], torch.distributions.Normal)
+    assert isinstance(module()["b"], torch.distributions.Gamma)

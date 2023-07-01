@@ -246,13 +246,14 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     return tracer.sample(state, name, distribution, sample_shape)
 
 
-def condition(model: Callable, *args: Dict[str, torch.Tensor], **kwargs: torch.Tensor) -> Callable:
+def condition(model: Callable, values: TensorDict | None = None, **kwargs: torch.Tensor) \
+        -> Callable:
     """
     Condition a model on values.
 
     Args:
         model: Model to condition.
-        *args: Values to condition on as dictionaries.
+        values: Values to condition on as a dictionary of tensors.
         **kwargs: Values to condition on as keyword arguments.
 
     Returns:
@@ -278,15 +279,13 @@ def condition(model: Callable, *args: Dict[str, torch.Tensor], **kwargs: torch.T
             tensor(0.3000)
     """
     # Coalesce all the values.
-    values = {}
-    for arg in args:
-        values.update(arg)
+    values = values or {}
     values.update(kwargs)
 
     @with_active_state
     @ft.wraps(model)
-    def _wrapper(state, *wrapper_args, **wrapper_kwargs) -> Any:
+    def _wrapper(state, *args, **kwargs) -> Any:
         state.update(values)
-        return model(*wrapper_args, **wrapper_kwargs)
+        return model(*args, **kwargs)
 
     return _wrapper

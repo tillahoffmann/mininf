@@ -84,6 +84,26 @@ class SingletonContextMixin:
 class State(Dict[str, Any], SingletonContextMixin):
     """
     Parameters of a model.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb import sample, State
+            >>> from torch.distributions import Normal
+
+            # Sample within a state context to record parameters.
+            >>> with State() as state:
+            ...     x1 = sample("x", Normal(0, 1))
+            >>> state
+            <State at 0x... comprising {'x': Tensor(shape=())}>
+
+            # Sampling again within the same context returns the same parameter.
+            >>> with state:
+            ...     x2 = sample("x", Normal(0, 1))
+            >>> x1 is x2
+            True
+
     """
     SINGLETON_KEY = "state"
 

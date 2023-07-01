@@ -7,6 +7,10 @@ minivb's core functionality comprises only two functions: Drawing random variabl
 
 .. autofunction:: minivb.condition
 
+Parameters obtained by sampling or conditioning are managed by :class:`.State` objects. They act as a tape and record all sampling and conditioning statements. It is not necessary to handle state manually, but using :class:`.State` objects can be useful for debugging and model inspection (see :doc:`../examples/regression-with-feature-uncertainty` for an example).
+
+.. autoclass:: minivb.State
+
 Neural Networks for Inference
 -----------------------------
 

@@ -12,6 +12,7 @@ extensions = [
 master_doc = "README"
 exclude_patterns = [
     ".pytest_cache",
+    "**/.ipynb_checkpoints",
 ]
 autodoc_typehints_format = "short"
 myst_enable_extensions = [

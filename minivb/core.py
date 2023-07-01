@@ -83,12 +83,44 @@ class SingletonContextMixin:
 
 class State(Dict[str, Any], SingletonContextMixin):
     """
-    Variables of a model.
+    Parameters of a model.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb import sample, State
+            >>> from torch.distributions import Normal
+
+            # Sample within a state context to record parameters.
+            >>> with State() as state:
+            ...     x1 = sample("x", Normal(0, 1))
+            >>> state
+            <State at 0x... comprising {'x': Tensor(shape=())}>
+
+            # Sampling again within the same context returns the same parameter.
+            >>> with state:
+            ...     x2 = sample("x", Normal(0, 1))
+            >>> x1 is x2
+            True
+
     """
     SINGLETON_KEY = "state"
 
     def __repr__(self) -> str:
         return _format_dict_compact(self)
+
+    def subset(self, *names: str) -> State:
+        """
+        Extract a subset of parameters from the state.
+
+        Args:
+            names: Names of parameters to extract.
+
+        Returns:
+            State comprising the desired parameters.
+        """
+        return State({name: self[name] for name in names})
 
 
 class TracerMixin(SingletonContextMixin):
@@ -214,13 +246,14 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     return tracer.sample(state, name, distribution, sample_shape)
 
 
-def condition(model: Callable, **values: torch.Tensor) -> Callable:
+def condition(model: Callable, *args: Dict[str, torch.Tensor], **kwargs: torch.Tensor) -> Callable:
     """
     Condition a model on values.
 
     Args:
         model: Model to condition.
-        **values: Values to condition on.
+        *args: Values to condition on as dictionaries.
+        **kwargs: Values to condition on as keyword arguments.
 
     Returns:
         Conditioned model.
@@ -244,10 +277,16 @@ def condition(model: Callable, **values: torch.Tensor) -> Callable:
             >>> conditioned()
             tensor(0.3000)
     """
+    # Coalesce all the values.
+    values = {}
+    for arg in args:
+        values.update(arg)
+    values.update(kwargs)
+
     @with_active_state
     @ft.wraps(model)
-    def _wrapper(state, *args, **kwargs) -> Any:
+    def _wrapper(state, *wrapper_args, **wrapper_kwargs) -> Any:
         state.update(values)
-        return model(*args, **kwargs)
+        return model(*wrapper_args, **wrapper_kwargs)
 
     return _wrapper

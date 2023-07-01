@@ -15,7 +15,7 @@ def test_linear_regression_forward_backward() -> None:
     assert linear_regression(5, 2) is None
 
     # Sample from the model (implicitly using the `SampleTracer`).
-    with minivb.core.State() as state:
+    with minivb.State() as state:
         assert linear_regression(50, 3) is None
 
     expected_shapes = {

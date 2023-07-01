@@ -1,3 +1,6 @@
+import os
+
+
 project = "minivb"
 author = "Till Hoffmann"
 copyright = "since 2023"
@@ -26,7 +29,7 @@ autodoc_typehints_format = "short"
 myst_enable_extensions = [
     "dollarmath",
 ]
-nb_execution_mode = "cache"
+nb_execution_mode = "off" if "NOEXEC" in os.environ else "cache"
 nb_execution_timeout = 60
 nb_execution_allow_errors = False
 nb_execution_raise_on_error = True

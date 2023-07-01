@@ -17,6 +17,9 @@ exclude_patterns = [
     "**/.jupyter_cache",
     "**/jupyter_execute",
 ]
+nitpick_ignore = [
+    ("py:class", "torch.Size"),
+]
 add_module_names = False
 autodoc_typehints_format = "short"
 myst_enable_extensions = [

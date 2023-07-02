@@ -8,7 +8,8 @@ from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 from unittest import mock
 
-from .util import check_constraint, _format_dict_compact, _normalize_shape, OptionalSize, TensorDict
+from .masked import as_masked_tensor, check_constraint, MaskedContainer
+from .util import _format_dict_compact, _normalize_shape, OptionalSize, TensorDict
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -143,7 +144,7 @@ class TracerMixin(SingletonContextMixin):
                                 sample_shape: OptionalSize = None) -> None:
         if not self._validate_parameters:
             return
-        if not isinstance(value, torch.Tensor):
+        if not isinstance(value, (torch.Tensor, MaskedContainer)):
             raise TypeError(f"Expected a tensor for parameter '{name}' but got {type(value)}.")
 
         sample_shape = _normalize_shape(sample_shape)
@@ -188,27 +189,29 @@ class LogProbTracer(TracerMixin, TensorDict):
         self._assert_valid_parameter(value, name, distribution, sample_shape)
 
         # If the tensor is masked, we need to disable the internal validation of the sample and
-        # handle the mask explicitly. We could use `torch.masked.is_masked_tensor` here but that
-        # fails to provide static type hints.
-        if isinstance(value, torch.masked.MaskedTensor):
+        # handle the mask explicitly.
+        if isinstance(value, MaskedContainer):
             # Validate the sample if so desired by the distribution.
             if distribution._validate_args and \
                     not check_constraint(cast(Constraint, distribution.support), value).all():
                 raise ValueError(f"Sample {value} is not in the support {distribution.support} of "
                                  f"distribution {distribution}.")
             with mock.patch.object(distribution, "_validate_args", False):
-                log_prob = distribution.log_prob(value.get_data())
-            log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())
+                log_prob = distribution.log_prob(value.data)
+            log_prob = as_masked_tensor(log_prob, value.mask)  # type: ignore
         else:
             log_prob = distribution.log_prob(value)
         self[name] = log_prob
-        return value
+        return value  # type: ignore
 
     @property
     def total(self) -> torch.Tensor:
-        result = cast(torch.Tensor, sum(value.sum() for value in self.values()))
-        if isinstance(result, torch.masked.MaskedTensor):
-            return result.get_data()
+        result = torch.as_tensor(0.0)
+        for value in self.values():
+            if isinstance(value, MaskedContainer):
+                result += (value.data[value.mask]).sum()
+            else:
+                result += value.sum()
         return result
 
     def __repr__(self) -> str:

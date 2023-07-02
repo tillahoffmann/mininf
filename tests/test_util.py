@@ -1,4 +1,4 @@
-from minivb.util import check_constraint
+import minivb.masked
 import pytest
 import torch
 from torch.distributions.constraints import Constraint
@@ -45,20 +45,20 @@ def test_check_masked_constraint(distribution: torch.distributions.Distribution)
     assert result.all()
 
     # Verify that the masked check gives the same result on raw data.
-    torch.testing.assert_close(check_constraint(distribution.support, x), result)
+    torch.testing.assert_close(minivb.masked.check_constraint(distribution.support, x), result)
 
     # Verify that setting values to nan and checking the constraints gives failures where the mask
     # is if we don't specify a mask.
     x[~mask] = torch.nan
     result = distribution.support.check(x)
     torch.testing.assert_close(result, mask)
-    torch.testing.assert_close(check_constraint(distribution.support, x), result)
+    torch.testing.assert_close(minivb.masked.check_constraint(distribution.support, x), result)
 
     # Verify that everything works as expected when we mask values.
     expanded_mask = mask.reshape(mask.shape + tuple(1 for _ in range(constraint.event_dim)))
-    masked = torch.masked.as_masked_tensor(*torch.broadcast_tensors(x, expanded_mask))
-    result = check_constraint(distribution.support, masked)
+    masked = minivb.masked.as_masked_tensor(*torch.broadcast_tensors(x, expanded_mask))
+    result = minivb.masked.check_constraint(distribution.support, masked)
 
     # Check the mask of the check is the unexpanded one.
-    torch.testing.assert_close(result.get_data(), mask)
-    assert result.all()
+    torch.testing.assert_close(result.mask, mask)
+    assert result.data[result.mask].all()

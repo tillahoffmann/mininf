@@ -192,3 +192,34 @@ def test_condition_conflict(strict: bool) -> None:
     else:
         # The first conditioning statement takes precedence.
         assert conditioned2() == 0.1
+
+
+def test_log_prob_masked() -> None:
+    distribution = torch.distributions.Uniform(0, 2)
+
+    def model():
+        minivb.sample("x", distribution, (7, 8))
+
+    with minivb.State() as state:
+        model()
+
+    # Clone the original (probably not actually necessary) and mask the tensor.
+    original = state["x"].clone()
+    mask = torch.rand(*state["x"].shape) < 0.5
+    state["x"] = torch.masked.as_masked_tensor(torch.where(mask, original, -9), mask)
+
+    # Trace the log probability and ensure it matches expectations.
+    with state, minivb.core.LogProbTracer() as log_prob:
+        model()
+
+    original_log_prob = distribution.log_prob(original)
+    assert (log_prob["x"] == original_log_prob).all()
+    assert log_prob.total.ndim == 0
+    torch.testing.assert_close(log_prob.total, original_log_prob[mask].sum())
+
+    # Check errors are raised if an invalid value is passed. We need to turn off validation at the
+    # `LogProbTracer` level or it would catch the error first.
+    state["x"] = torch.masked.as_masked_tensor(torch.where(mask, -9, original), mask)
+    with state, pytest.raises(ValueError, match="is not in the support Interval"), \
+            minivb.core.LogProbTracer(_validate_parameters=False) as log_prob:
+        model()

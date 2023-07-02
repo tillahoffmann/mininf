@@ -99,8 +99,9 @@ fig, axes = plt.subplots(2, 2)
 
 # Show posterior samples of intercept and slope and the true value.
 ax = axes[0, 0]
-ax.scatter(samples["intercept"], samples["slope"], marker=".", alpha=0.2, edgecolor="none")
-ax.scatter(state["intercept"], state["slope"], facecolor="k", edgecolor="w", marker="X")
+ax.axhline(state["slope"], color="k", ls=":")
+ax.axvline(state["intercept"], color="k", ls=":")
+ax.scatter(samples["intercept"], samples["slope"], marker=".", zorder=2)
 ax.set_xlabel("intercept")
 ax.set_ylabel("slope")
 

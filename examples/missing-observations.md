@@ -21,6 +21,7 @@ Here is the model definition and a visualization of a sample from the prior pred
 from matplotlib import pyplot as plt
 from mininf import condition, nn, sample, State
 from mininf.distributions import InverseGamma
+import os
 import torch
 from torch.distributions import Gamma, MultivariateNormal, Normal
 
@@ -84,7 +85,7 @@ def infer(y):
     conditioned = condition(model, state.subset("kappa"), y=y)
 
     # Optimize the parameters and draw samples from the approximate posterior.
-    for _ in range(1_500):
+    for _ in range(3 if "CI" in os.environ else 1_500):
         optimizer.zero_grad()
         loss(conditioned, approximation()).backward()
         optimizer.step()

@@ -18,6 +18,7 @@ Regression often assumes that features or covariates are measured without error.
 ```{code-cell} ipython3
 from matplotlib import pyplot as plt
 from mininf import condition, sample, State, nn
+import os
 import torch
 from torch.distributions import Gamma, Normal, Poisson
 
@@ -84,7 +85,7 @@ conditioned = condition(model, state.subset("x", "y", "noise_scale"))
 loss = nn.EvidenceLowerBoundLoss()
 
 optimizer = torch.optim.Adam(approximation.parameters(), lr=0.05)
-for _ in range(3000):
+for _ in range(3 if "CI" in os.environ else 3_000):
     optimizer.zero_grad()
     loss(conditioned, approximation()).backward()
     optimizer.step()

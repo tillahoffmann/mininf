@@ -36,6 +36,7 @@ Let us define the model using mininf syntax. Similar to [Pyro](http://pyro.ai), 
 
 ```{code-cell} ipython3
 import mininf
+import os
 import torch
 
 
@@ -90,7 +91,7 @@ Assembling these components, we can optimize the parameters of the approximate p
 ```{code-cell} ipython3
 optimizer = torch.optim.Adam(approximation.parameters(), lr=0.05)
 
-for _ in range(1000):
+for _ in range(3 if "CI" in os.environ else 1_000):
     optimizer.zero_grad()
     loss_value = loss(conditioned, {"rho": approximation()})
     loss_value.backward()

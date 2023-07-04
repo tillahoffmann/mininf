@@ -23,4 +23,6 @@ jobs:
       - name: Run the tests.
         run: make tests
       - name: Build the documentation.
-        run: make docs doctests
+        run: make docs
+      - name: Run the doctests.
+        run: make doctests

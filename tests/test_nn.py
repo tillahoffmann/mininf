@@ -1,10 +1,12 @@
 import minivb
-from minivb.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution
+from minivb.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution, \
+    ParameterizedFactorizedDistribution
+from minivb.util import TensorDict
 import numpy as np
 import pytest
 import torch
 from torch import distributions
-from typing import Dict, Set, Type
+from typing import Set, Type
 
 
 @pytest.mark.parametrize("cls, params, _const, grads", [
@@ -12,9 +14,8 @@ from typing import Dict, Set, Type
     (distributions.Normal, {"loc": torch.randn(3), "scale": torch.ones(2, 1)}, {"loc"}, {"scale"}),
     (distributions.LKJCholesky, {"dim": 3, "concentration": 9}, set(), {"concentration"}),
 ])
-def test_parameterized_distribution(cls: Type[distributions.Distribution],
-                                    params: Dict[str, torch.Tensor], _const: Set[str],
-                                    grads: Set[str]) -> None:
+def test_parameterized_distribution(cls: Type[distributions.Distribution], params: TensorDict,
+                                    _const: Set[str], grads: Set[str]) -> None:
     # Construct the distribution.
     pdist = ParameterizedDistribution(cls, _const=_const, **params)
     dist = pdist()
@@ -72,7 +73,39 @@ def test_evidence_lower_bound_wrong_distribution_type() -> None:
 
 
 def test_parameterized_distribution_no_exposed_parameters() -> None:
+    # Check that parameters are not directly exposed.
     approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0, scale=1)
     distribution = approximation()
     assert not isinstance(distribution.loc, torch.nn.Parameter)
     assert not isinstance(distribution.scale, torch.nn.Parameter)
+
+
+@pytest.mark.parametrize("clone", [False, True])
+def test_parameterized_distribution_input_cloned(clone: bool) -> None:
+    # Check that gradients do not propagate to the input arguments if the clone flag is true.
+    loc = torch.randn(3)
+    copied = loc.clone()
+    assert loc is not copied
+    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=loc, scale=1,
+                                              _clone=clone)
+
+    optimizer = torch.optim.Adam(approximation.parameters(), 0.1)
+    distribution: torch.distributions.Distribution = approximation()
+    loss = distribution.rsample().square().sum()
+    loss.backward()
+    optimizer.step()
+
+    if clone:
+        np.testing.assert_allclose(loc, copied)
+    else:
+        assert ((loc - copied).abs() > 1e-6).all()
+
+
+def test_factorized_parameterized_distribution() -> None:
+    module = ParameterizedFactorizedDistribution(
+        {"a": ParameterizedDistribution(torch.distributions.Normal, loc=0, scale=1)},
+        b=ParameterizedDistribution(torch.distributions.Gamma, concentration=3, rate=2),
+    )
+    assert set(module) == {"a", "b"}
+    assert isinstance(module()["a"], torch.distributions.Normal)
+    assert isinstance(module()["b"], torch.distributions.Gamma)

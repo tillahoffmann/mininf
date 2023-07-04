@@ -7,10 +7,23 @@ from torch import distributions, nn
 from typing import Callable, cast, Dict, Set, Type
 
 from .core import condition, LogProbTracer
-from .util import _normalize_shape, OptionalSize
+from .util import _normalize_shape, OptionalSize, TensorDict
 
 
-TensorDict = Dict[str, torch.Tensor]
+DistributionDict = Dict[str, torch.distributions.Distribution]
+
+
+def _is_identity_transform(transform: distributions.Transform) -> bool:
+    """
+    Determine whether a transform is the identity transform.
+
+    Args:
+        transform: Transform to check.
+
+    Returns:
+        Whether the transform is the identity transform.
+    """
+    return isinstance(transform, torch.distributions.ComposeTransform) and not transform.parts
 
 
 class ParameterizedDistribution(nn.Module):
@@ -21,6 +34,10 @@ class ParameterizedDistribution(nn.Module):
         cls: Distribution type.
         _const: Names of parameters to be treated as constant (prefixed with `_` to avoid possible
             conflicts with distributions having a `const` parameter).
+        _clone: Clone parameter tensors if they are not modified by transforming parameters to an
+            unconstrained space. This ensures training does not modify inputs, e.g., if parameters
+            are initialized based on data (prefixed with `_` to avoid possible conflicts with
+            distributions having a `clone` parameter).
         **parameters: Parameter values passed to the distribution constructor.
 
     Example:
@@ -36,13 +53,13 @@ class ParameterizedDistribution(nn.Module):
             Normal(...)
     """
     def __init__(self, cls: Type[distributions.Distribution], *, _const: Set[str] | None = None,
-                 **parameters: torch.Tensor) -> None:
+                 _clone: bool = True, **parameters: torch.Tensor) -> None:
         super().__init__()
         self.distribution_cls = cls
 
         # Iterate over all parameters and split them into constants and learnable parameters.
         _const = _const or set()
-        self.distribution_constants: Dict[str, torch.Tensor] = {}
+        self.distribution_constants: TensorDict = {}
         distribution_parameters = {}
 
         for name, value in parameters.items():
@@ -56,7 +73,11 @@ class ParameterizedDistribution(nn.Module):
                 value = torch.as_tensor(value, dtype=torch.get_default_dtype())
             arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
                                   cls.arg_constraints)[name]
-            value = distributions.transform_to(arg_constraint).inv(value)
+            transform = distributions.transform_to(arg_constraint)
+            if _is_identity_transform(transform) and _clone:
+                value = 1 * value
+            else:
+                value = transform.inv(value)
             distribution_parameters[name] = nn.Parameter(value)
 
         self.distribution_parameters = nn.ParameterDict(distribution_parameters)
@@ -70,14 +91,14 @@ class ParameterizedDistribution(nn.Module):
                                   self.distribution_cls.arg_constraints)[name]
             transform = distributions.transform_to(arg_constraint)
             # Multiply by one if the transform is empty so we don't expose parameters directly.
-            if isinstance(transform, torch.distributions.ComposeTransform) and not transform.parts:
+            if _is_identity_transform(transform):
                 parameters[name] = 1 * value
             else:
                 parameters[name] = transform(value)
         return self.distribution_cls(**parameters, **self.distribution_constants)  # type: ignore
 
 
-class FactorizedDistribution(Dict[str, torch.distributions.Distribution]):
+class FactorizedDistribution(DistributionDict):
     """
     Joint distributions comprising independent factors of named distributions.
 
@@ -139,6 +160,34 @@ class FactorizedDistribution(Dict[str, torch.distributions.Distribution]):
         return {name: distribution.sample(sample_shape) for name, distribution in self.items()}
 
 
+class ParameterizedFactorizedDistribution(nn.ModuleDict):
+    """
+    Dictionary of parameterized distribution with trainable parameters.
+
+    Example:
+
+        .. doctest::
+
+            >>> from minivb.nn import ParameterizedDistribution, ParameterizedFactorizedDistribution
+            >>> from torch.distributions import Gamma, Normal
+
+            >>> distributions = ParameterizedFactorizedDistribution(
+            ...     x=ParameterizedDistribution(Normal, loc=0, scale=1),
+            ...     y=ParameterizedDistribution(Gamma, concentration=2, rate=2),
+            ... )
+            >>> distributions()
+            {'x': Normal(loc: 0.0, scale: 1.0), 'y': Gamma(concentration: 2.0, rate: 2.0)}
+    """
+    def __init__(self, arg: Dict[str, ParameterizedDistribution] | None = None,
+                 **kwargs: ParameterizedDistribution) -> None:
+        arg = arg or {}
+        arg.update(kwargs)
+        super().__init__(arg)
+
+    def forward(self) -> FactorizedDistribution:
+        return FactorizedDistribution({name: distribution() for name, distribution in self.items()})
+
+
 class EvidenceLowerBoundLoss(nn.Module):
     """
     Evaluate the negative evidence lower bound.
@@ -161,8 +210,8 @@ class EvidenceLowerBoundLoss(nn.Module):
             >>> loss(model, {"x": approx})
             tensor(...)
     """
-    def forward(self, model: Callable, approximation: torch.distributions.Distribution
-                | Dict[str, torch.distributions.Distribution]) -> torch.Tensor:
+    def forward(self, model: Callable,
+                approximation: torch.distributions.Distribution | DistributionDict) -> torch.Tensor:
         """"""  # Hide `forward` docstring in documentation.
         if isinstance(approximation, Dict):
             approximation = FactorizedDistribution(approximation)
@@ -173,7 +222,8 @@ class EvidenceLowerBoundLoss(nn.Module):
 
         # Get the entropy and evaluate the ELBO loss.
         with LogProbTracer() as log_prob:
-            condition(model, **samples)()
+            # Ignoring type checks here because mypy gets confused about the dictionary expansion.
+            condition(model, **samples)()  # type: ignore
         elbo = log_prob.total + approximation.entropy()
 
         return - elbo

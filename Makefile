@@ -1,4 +1,6 @@
-.PHONY: docs doctests lint tests
+.PHONY: all docs doctests lint tests
+
+all : tests lint docs doctests
 
 tests :
 	pytest -v --cov=minivb --cov-report=term-missing --cov-fail-under=100

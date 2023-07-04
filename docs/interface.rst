@@ -18,6 +18,8 @@ The :code:`nn` module provides a range of modules for variational Bayesian infer
 
 .. autoclass:: minivb.nn.ParameterizedDistribution
 
-.. autoclass:: minivb.nn.EvidenceLowerBoundLoss
+.. autoclass:: minivb.nn.ParameterizedFactorizedDistribution
 
 .. autoclass:: minivb.nn.FactorizedDistribution
+
+.. autoclass:: minivb.nn.EvidenceLowerBoundLoss

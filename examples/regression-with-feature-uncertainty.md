@@ -63,27 +63,15 @@ ax.legend()
 fig.tight_layout()
 ```
 
-We have defined a model and generated synthetic data. To recover the parameters using variational inference, we need to define the form of the approximation, condition on the data, and optimize the parametric approximation. We choose independent normal random variables for the latent features, bias, and intercept. We use a gamma distribution to approximate the population scale and assume the observation noise scale is known, e.g., from instrument calibration. The parametric approximations are stored in a common {class}`torch.nn.Module` so we can easily keep track of trainable parameters. The model returns a {class}`minivb.nn.FactorizedDistribution` comprising independent components.
+We have defined a model and generated synthetic data. To recover the parameters using variational inference, we need to define the form of the approximation, condition on the data, and optimize the parametric approximation. We choose independent normal random variables for the latent features, bias, and intercept. We use a gamma distribution to approximate the population scale and assume the observation noise scale is known, e.g., from instrument calibration. The parametric approximations are stored in a common {class}`minivb.nn.ParameterizedFactorizedDistribution` so we can easily keep track of trainable parameters. The module returns a {class}`minivb.nn.FactorizedDistribution` comprising independent components.
 
 ```{code-cell} ipython3
-class Approximation(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.z = nn.ParameterizedDistribution(Normal, loc=torch.zeros(n), scale=torch.ones(n))
-        self.intercept = nn.ParameterizedDistribution(Normal, loc=0, scale=1)
-        self.slope = nn.ParameterizedDistribution(Normal, loc=0, scale=1)
-        self.population_scale = nn.ParameterizedDistribution(Gamma, concentration=2, rate=2)
-
-    def forward(self):
-        return nn.FactorizedDistribution({
-            "z": self.z(),
-            "intercept": self.intercept(),
-            "slope": self.slope(),
-            "population_scale": self.population_scale(),
-        })
-
-
-approximation = Approximation()
+approximation = nn.ParameterizedFactorizedDistribution(
+    z=nn.ParameterizedDistribution(Normal, loc=torch.zeros(n), scale=torch.ones(n)),
+    intercept=nn.ParameterizedDistribution(Normal, loc=0, scale=1),
+    slope=nn.ParameterizedDistribution(Normal, loc=0, scale=1),
+    population_scale=nn.ParameterizedDistribution(Gamma, concentration=2, rate=2),
+)
 approximation()
 ```
 
@@ -111,8 +99,9 @@ fig, axes = plt.subplots(2, 2)
 
 # Show posterior samples of intercept and slope and the true value.
 ax = axes[0, 0]
-ax.scatter(samples["intercept"], samples["slope"], marker=".", alpha=0.2, edgecolor="none")
-ax.scatter(state["intercept"], state["slope"], facecolor="k", edgecolor="w", marker="X")
+ax.axhline(state["slope"], color="k", ls=":")
+ax.axvline(state["intercept"], color="k", ls=":")
+ax.scatter(samples["intercept"], samples["slope"], marker=".", zorder=2)
 ax.set_xlabel("intercept")
 ax.set_ylabel("slope")
 

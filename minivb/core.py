@@ -3,11 +3,13 @@ import functools as ft
 import logging
 import torch
 from torch.distributions import Distribution
-import torch.distributions.constraints
+from torch.distributions.constraints import Constraint
 from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
 from typing_extensions import Self
+from unittest import mock
 
-from .util import _format_dict_compact, _normalize_shape, OptionalSize
+from .util import _format_dict_compact, _normalize_shape, check_constraint, \
+    get_masked_data_with_dense_grad, OptionalSize, TensorDict
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -152,7 +154,7 @@ class TracerMixin(SingletonContextMixin):
                              f"got {tuple(value.shape)}.")
 
         support = cast(torch.distributions.constraints.Constraint, distribution.support)
-        if not support.check(value).all():
+        if not check_constraint(support, value).all():
             raise ValueError(f"Parameter '{name}' is not in the support of {distribution}.")
 
 
@@ -171,7 +173,7 @@ class SampleTracer(TracerMixin):
         return value
 
 
-class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
+class LogProbTracer(TracerMixin, TensorDict):
     """
     Evaluate the log probability of a state under the model.
     """
@@ -185,12 +187,32 @@ class LogProbTracer(TracerMixin, Dict[str, torch.Tensor]):
             raise ValueError(f"Cannot evaluate log probability; variable '{name}' is missing. Did "
                              "you forget to condition on observed data?")
         self._assert_valid_parameter(value, name, distribution, sample_shape)
-        self[name] = distribution.log_prob(value)
-        return value
+
+        # If the tensor is masked, we need to disable the internal validation of the sample and
+        # handle the mask explicitly.
+        if isinstance(value, torch.masked.MaskedTensor):
+            # Validate the sample if so desired by the distribution.
+            if distribution._validate_args and \
+                    not check_constraint(cast(Constraint, distribution.support), value).all():
+                raise ValueError(f"Sample {value} is not in the support {distribution.support} of "
+                                 f"distribution {distribution}.")
+            with mock.patch.object(distribution, "_validate_args", False):
+                log_prob = distribution.log_prob(get_masked_data_with_dense_grad(value))
+            log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())  # type: ignore
+        else:
+            log_prob = distribution.log_prob(value)
+        self[name] = log_prob
+        return value  # type: ignore
 
     @property
     def total(self) -> torch.Tensor:
-        return cast(torch.Tensor, sum(value.sum() for value in self.values()))
+        result = torch.as_tensor(0.0)
+        for value in self.values():
+            if isinstance(value, torch.masked.MaskedTensor):
+                result += (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
+            else:
+                result += value.sum()
+        return result
 
     def __repr__(self) -> str:
         return _format_dict_compact(self)
@@ -246,13 +268,22 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     return tracer.sample(state, name, distribution, sample_shape)
 
 
-def condition(model: Callable, *args: Dict[str, torch.Tensor], **kwargs: torch.Tensor) -> Callable:
+def condition(model: Callable, values: TensorDict | None = None, *, _strict: bool = True,
+              **kwargs: torch.Tensor) -> Callable:
     """
     Condition a model on values.
 
+    .. note::
+
+        The first conditioning statement takes precedence if a parameter is conditioned multiple
+        times and `_strict` is `False`. If `_strict` is `True`, conditioning multiple times raises
+        an exception.
+
     Args:
         model: Model to condition.
-        *args: Values to condition on as dictionaries.
+        values: Values to condition on as a dictionary of tensors.
+        _strict: Enforce that each parameter is conditioned on at most once (prefixed with `_` to
+            avoid possible conflicts with states having a `strict` key).
         **kwargs: Values to condition on as keyword arguments.
 
     Returns:
@@ -278,15 +309,18 @@ def condition(model: Callable, *args: Dict[str, torch.Tensor], **kwargs: torch.T
             tensor(0.3000)
     """
     # Coalesce all the values.
-    values = {}
-    for arg in args:
-        values.update(arg)
+    values = values or {}
     values.update(kwargs)
 
     @with_active_state
     @ft.wraps(model)
-    def _wrapper(state, *wrapper_args, **wrapper_kwargs) -> Any:
+    def _wrapper(state: State, *args, **kwargs) -> Any:
+        if _strict:
+            conflict = set(state) & set(values)
+            if conflict:
+                raise ValueError(f"Cannot update state {state} because it already has parameters "
+                                 f"{conflict}.")
         state.update(values)
-        return model(*wrapper_args, **wrapper_kwargs)
+        return model(*args, **kwargs)
 
     return _wrapper

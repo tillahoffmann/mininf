@@ -1,5 +1,4 @@
 import minivb
-import minivb.masked
 import numpy as np
 import pytest
 import torch
@@ -207,7 +206,7 @@ def test_log_prob_masked() -> None:
     # Clone the original (probably not actually necessary) and mask the tensor.
     original = state["x"].clone()
     mask = torch.rand(*state["x"].shape) < 0.5
-    state["x"] = minivb.masked.as_masked_tensor(torch.where(mask, original, -9), mask)
+    state["x"] = torch.masked.as_masked_tensor(torch.where(mask, original, -9), mask)
 
     # Trace the log probability and ensure it matches expectations.
     with state, minivb.core.LogProbTracer() as log_prob:
@@ -220,7 +219,7 @@ def test_log_prob_masked() -> None:
 
     # Check errors are raised if an invalid value is passed. We need to turn off validation at the
     # `LogProbTracer` level or it would catch the error first.
-    state["x"] = minivb.masked.as_masked_tensor(torch.where(mask, -9, original), mask)
+    state["x"] = torch.masked.as_masked_tensor(torch.where(mask, -9, original), mask)
     with state, pytest.raises(ValueError, match="is not in the support GreaterThanEq"), \
             minivb.core.LogProbTracer(_validate_parameters=False) as log_prob:
         model()
@@ -228,7 +227,7 @@ def test_log_prob_masked() -> None:
 
 def test_log_prob_masked_grad() -> None:
     x = torch.randn(100, requires_grad=True)
-    state = minivb.State(x=minivb.masked.as_masked_tensor(x, torch.randn(100) < 0))
+    state = minivb.State(x=torch.masked.as_masked_tensor(x, torch.randn(100) < 0))
     with state, minivb.core.LogProbTracer() as log_prob:
         minivb.sample("x", torch.distributions.Normal(0, 1), [100])
 

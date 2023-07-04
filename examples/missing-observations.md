@@ -21,7 +21,6 @@ Here is the model definition and a visualization of a sample from the prior pred
 from matplotlib import pyplot as plt
 from minivb import condition, nn, sample, State
 from minivb.distributions import InverseGamma
-import minivb.masked
 import torch
 from torch.distributions import Gamma, MultivariateNormal, Normal
 
@@ -129,6 +128,7 @@ Given the full dataset, the inference pipeline can recover both the latent Gauss
 Inference proceeds as before except we condition on a :class:`torch.masked.MaskedTensor`.
 
 ```{code-cell} ipython3
-samples_masked = infer(minivb.masked.MaskedContainer(state["y"], mask))
+masked_y = torch.masked.as_masked_tensor(state["y"], mask)
+samples_masked = infer(masked_y)
 visualize_samples(samples_masked)
 ```

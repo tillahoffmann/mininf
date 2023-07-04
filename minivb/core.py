@@ -8,8 +8,8 @@ from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 from unittest import mock
 
-from .masked import as_masked_tensor, check_constraint, MaskedContainer
-from .util import _format_dict_compact, _normalize_shape, OptionalSize, TensorDict
+from .util import _format_dict_compact, _normalize_shape, check_constraint, \
+    get_masked_data_with_dense_grad, OptionalSize, TensorDict
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -144,7 +144,7 @@ class TracerMixin(SingletonContextMixin):
                                 sample_shape: OptionalSize = None) -> None:
         if not self._validate_parameters:
             return
-        if not isinstance(value, (torch.Tensor, MaskedContainer)):
+        if not isinstance(value, torch.Tensor):
             raise TypeError(f"Expected a tensor for parameter '{name}' but got {type(value)}.")
 
         sample_shape = _normalize_shape(sample_shape)
@@ -190,15 +190,15 @@ class LogProbTracer(TracerMixin, TensorDict):
 
         # If the tensor is masked, we need to disable the internal validation of the sample and
         # handle the mask explicitly.
-        if isinstance(value, MaskedContainer):
+        if isinstance(value, torch.masked.MaskedTensor):
             # Validate the sample if so desired by the distribution.
             if distribution._validate_args and \
                     not check_constraint(cast(Constraint, distribution.support), value).all():
                 raise ValueError(f"Sample {value} is not in the support {distribution.support} of "
                                  f"distribution {distribution}.")
             with mock.patch.object(distribution, "_validate_args", False):
-                log_prob = distribution.log_prob(value.data)
-            log_prob = as_masked_tensor(log_prob, value.mask)  # type: ignore
+                log_prob = distribution.log_prob(get_masked_data_with_dense_grad(value))
+            log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())  # type: ignore
         else:
             log_prob = distribution.log_prob(value)
         self[name] = log_prob
@@ -208,8 +208,8 @@ class LogProbTracer(TracerMixin, TensorDict):
     def total(self) -> torch.Tensor:
         result = torch.as_tensor(0.0)
         for value in self.values():
-            if isinstance(value, MaskedContainer):
-                result += (value.data[value.mask]).sum()
+            if isinstance(value, torch.masked.MaskedTensor):
+                result += (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
             else:
                 result += value.sum()
         return result

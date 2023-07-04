@@ -1,4 +1,4 @@
-from minivb.distributions import InverseGamma
+from mininf.distributions import InverseGamma
 import torch
 
 

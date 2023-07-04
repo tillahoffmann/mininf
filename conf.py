@@ -1,7 +1,7 @@
 import os
 
 
-project = "minivb"
+project = "mininf"
 author = "Till Hoffmann"
 copyright = "since 2023"
 html_theme = "pydata_sphinx_theme"

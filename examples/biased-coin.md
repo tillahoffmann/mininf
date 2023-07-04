@@ -32,16 +32,16 @@ $$
 
 where $n$ is the number of observations and $k$ is the number of heads. This allows us to validate our inference pipeline.
 
-Let us define the model using minivb syntax. Similar to [Pyro](http://pyro.ai), each model is a probabilistic function using {func}`minivb.sample` statements to draw random variables. The {func}`minivb.sample` takes three arguments: The name of the random variable, the {mod}`torch.distributions` distribution to sample from, and the shape of the sample (which may be omitted if only a single sample is desired). Without further ado, here is the model.
+Let us define the model using mininf syntax. Similar to [Pyro](http://pyro.ai), each model is a probabilistic function using {func}`mininf.sample` statements to draw random variables. The {func}`mininf.sample` takes three arguments: The name of the random variable, the {mod}`torch.distributions` distribution to sample from, and the shape of the sample (which may be omitted if only a single sample is desired). Without further ado, here is the model.
 
 ```{code-cell} ipython3
-import minivb
+import mininf
 import torch
 
 
 def biased_coin_model() -> tuple[torch.Tensor, torch.Tensor]:
-    rho = minivb.sample("rho", torch.distributions.Uniform(0, 1))
-    x = minivb.sample("x", torch.distributions.Bernoulli(rho), [10])
+    rho = mininf.sample("rho", torch.distributions.Uniform(0, 1))
+    x = mininf.sample("x", torch.distributions.Bernoulli(rho), [10])
     return rho, x
 ```
 
@@ -56,35 +56,35 @@ rho, x.mean()
 
 We use [variational Bayesian inference](https://en.wikipedia.org/wiki/Variational_Bayesian_methods) to infer the bias of the coin $\rho$. Variational inference approximates the posterior using an approximate parametric distribution. The parameters of the approximation are optimized to maximize the evidence lower bound of the model conditioned on the data.
 
-Let us introduce three further minivb concepts and build an inference pipeline.
+Let us introduce three further mininf concepts and build an inference pipeline.
 
 
-First, {class}`minivb.nn.ParameterizedDistribution` is a PyTorch module that returns, upon execution, a distribution with trainable parameters. It takes the type of distribution as its only positional argument and initial values for its parameters as keyword arguments. Here, we use a beta distribution to approximate the posterior initialized as a uniform distribution.
+First, {class}`mininf.nn.ParameterizedDistribution` is a PyTorch module that returns, upon execution, a distribution with trainable parameters. It takes the type of distribution as its only positional argument and initial values for its parameters as keyword arguments. Here, we use a beta distribution to approximate the posterior initialized as a uniform distribution.
 
 ```{code-cell} ipython3
-approximation = minivb.nn.ParameterizedDistribution(
+approximation = mininf.nn.ParameterizedDistribution(
     torch.distributions.Beta, concentration1=1, concentration0=1,
 )
 approximation()
 ```
 
-Second, {func}`minivb.condition` conditions a model on data such that any {func}`minivb.sample` statement returns the value provided as a keyword argument. Here, we condition on the coin flips $x$ we simulated above.
+Second, {func}`mininf.condition` conditions a model on data such that any {func}`mininf.sample` statement returns the value provided as a keyword argument. Here, we condition on the coin flips $x$ we simulated above.
 
 ```{code-cell} ipython3
-conditioned = minivb.condition(biased_coin_model, x=x)
+conditioned = mininf.condition(biased_coin_model, x=x)
 ```
 
-Finally, {class}`minivb.nn.EvidenceLowerBoundLoss` is a loss module to obtain a Monte Carlo estimate of the evidence lower bound using samples drawn from the approximate posterior distribution. To be precise, the module computes an estimate of the *negative* evidence lower bound so the loss can be minimized using PyTorch as usual.
+Finally, {class}`mininf.nn.EvidenceLowerBoundLoss` is a loss module to obtain a Monte Carlo estimate of the evidence lower bound using samples drawn from the approximate posterior distribution. To be precise, the module computes an estimate of the *negative* evidence lower bound so the loss can be minimized using PyTorch as usual.
 
 ```{code-cell} ipython3
-loss = minivb.nn.EvidenceLowerBoundLoss()
+loss = mininf.nn.EvidenceLowerBoundLoss()
 loss
 ```
 
 Assembling these components, we can optimize the parameters of the approximate posterior and learn from the data. Specifically, we
 
-- evaluate the approximation by calling the {class}`minivb.nn.ParameterizedDistribution` module,
-- evaluate the loss by calling the {class}`minivb.nn.EvidenceLowerBoundLoss`,
+- evaluate the approximation by calling the {class}`mininf.nn.ParameterizedDistribution` module,
+- evaluate the loss by calling the {class}`mininf.nn.EvidenceLowerBoundLoss`,
 - and optimize the loss using standard PyTorch optimization.
 
 ```{code-cell} ipython3
@@ -113,4 +113,4 @@ ax.set_xlabel(r"coin bias $\rho$")
 ax.legend()
 ```
 
-This simple example illustrates the basic concepts of minivb, and you can explore further {doc}`examples` to learn more about minivb.
+This simple example illustrates the basic concepts of mininf, and you can explore further {doc}`examples` to learn more about mininf.

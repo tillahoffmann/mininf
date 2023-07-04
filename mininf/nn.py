@@ -1,5 +1,5 @@
 """
-The :mod:`minivb.nn` module contains modules to evaluate the evidence lower bounds, construct
+The :mod:`mininf.nn` module contains modules to evaluate the evidence lower bounds, construct
 distributions parameterized by learnable parameters, and other convenience functions and classes.
 """
 import torch
@@ -44,7 +44,7 @@ class ParameterizedDistribution(nn.Module):
 
         .. doctest::
 
-            >>> from minivb.nn import ParameterizedDistribution
+            >>> from mininf.nn import ParameterizedDistribution
             >>> import torch
             >>> from torch.distributions import Normal
 
@@ -106,7 +106,7 @@ class FactorizedDistribution(DistributionDict):
 
         .. doctest::
 
-            >>> from minivb.nn import FactorizedDistribution
+            >>> from mininf.nn import FactorizedDistribution
             >>> from torch.distributions import Normal, Gamma
 
             # Create a distribution with independent factors.
@@ -168,7 +168,7 @@ class ParameterizedFactorizedDistribution(nn.ModuleDict):
 
         .. doctest::
 
-            >>> from minivb.nn import ParameterizedDistribution, ParameterizedFactorizedDistribution
+            >>> from mininf.nn import ParameterizedDistribution, ParameterizedFactorizedDistribution
             >>> from torch.distributions import Gamma, Normal
 
             >>> distributions = ParameterizedFactorizedDistribution(
@@ -196,8 +196,8 @@ class EvidenceLowerBoundLoss(nn.Module):
 
         .. doctest::
 
-            >>> from minivb import sample
-            >>> from minivb.nn import EvidenceLowerBoundLoss
+            >>> from mininf import sample
+            >>> from mininf.nn import EvidenceLowerBoundLoss
             >>> from torch.distributions import Normal
 
             # Declare a simple model.

@@ -13,14 +13,14 @@ kernelspec:
 
 # Missing Observations
 
-Data are often incomplete and this missingness needs to be accounted for to obtain valid inferences. In this example, we first consider a Gaussian process regression model with complete data. Second, we explore different approaches for handling missing data. 
+Data are often incomplete and this missingness needs to be accounted for to obtain valid inferences. In this example, we first consider a Gaussian process regression model with complete data. Second, we explore different approaches for handling missing data.
 
 Here is the model definition and a visualization of a sample from the prior predictive distribution.
 
 ```{code-cell} ipython3
 from matplotlib import pyplot as plt
-from minivb import condition, nn, sample, State
-from minivb.distributions import InverseGamma
+from mininf import condition, nn, sample, State
+from mininf.distributions import InverseGamma
 import torch
 from torch.distributions import Gamma, MultivariateNormal, Normal
 
@@ -35,24 +35,24 @@ def model() -> None:
     sigma = sample("sigma", Gamma(2, 2))
     length_scale = sample("length_scale", InverseGamma(10, 1))
     kappa = sample("kappa", Gamma(2, 10))
-    
+
     # GP sample with squared exponential covariance and jitter.
     residuals = (x[:, None] - x) / length_scale
     cov = sigma * sigma * (- residuals ** 2 / 2).exp() + 1e-3 * torch.eye(n)
     z = sample("z", MultivariateNormal(torch.zeros(n), cov))
-    
+
     # Observation model.
     sample("y", Normal(z, kappa))
-    
+
 
 # Sample from the prior predictive distribution, get a mask, and visualize both.
 torch.manual_seed(13)
 with State() as state:
     model()
-    
+
 fraction_missing = 0.2
 mask = torch.rand(n) > fraction_missing
-    
+
 fig, ax = plt.subplots()
 ax.errorbar(x[mask], state["y"][mask], state["kappa"], ls="none", marker="o",
             label="observations $y$", markeredgecolor="w")
@@ -72,7 +72,7 @@ We approximate the non-negative marginal scale $\sigma$ and length scale $\ell$ 
 def infer(y):
     # Define the approximation and construct an optimizer.
     approximation = nn.ParameterizedFactorizedDistribution(
-        z=nn.ParameterizedDistribution(torch.distributions.Normal, loc=torch.randn(n), 
+        z=nn.ParameterizedDistribution(torch.distributions.Normal, loc=torch.randn(n),
                                        scale=torch.ones(n) * state["kappa"]),
         sigma=nn.ParameterizedDistribution(torch.distributions.Gamma, concentration=2, rate=2),
         length_scale=nn.ParameterizedDistribution(torch.distributions.Gamma, concentration=2, rate=2),
@@ -87,7 +87,7 @@ def infer(y):
     for _ in range(1_500):
         optimizer.zero_grad()
         loss(conditioned, approximation()).backward()
-        optimizer.step()    
+        optimizer.step()
     return approximation().sample([200])
 
 
@@ -116,8 +116,8 @@ def visualize_samples(samples):
     ax.set_xlabel("length scale")
     ax.set_ylabel("marginal scale")
     fig.tight_layout()
-    
-    
+
+
 visualize_samples(samples)
 ```
 

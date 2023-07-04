@@ -3,11 +3,11 @@
 all : tests lint docs doctests
 
 tests :
-	pytest -v --cov=minivb --cov-report=term-missing --cov-fail-under=100
+	pytest -v --cov=mininf --cov-report=term-missing --cov-fail-under=100
 
 lint:
 	flake8
-	mypy minivb
+	mypy mininf
 
 requirements.txt : requirements.in setup.py
 	pip-compile -v

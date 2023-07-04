@@ -1,4 +1,4 @@
-name: minivb
+name: mininf
 on:
   push:
     branches: [main]

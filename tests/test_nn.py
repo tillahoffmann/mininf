@@ -1,7 +1,7 @@
-import minivb
-from minivb.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution, \
+import mininf
+from mininf.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution, \
     ParameterizedFactorizedDistribution
-from minivb.util import TensorDict
+from mininf.util import TensorDict
 import numpy as np
 import pytest
 import torch
@@ -49,7 +49,7 @@ def test_factorized_distribution() -> None:
 
 def test_evidence_lower_bound_loss_with_grad() -> None:
     def model() -> None:
-        minivb.sample("x", torch.distributions.Normal(0, 1), (3,))
+        mininf.sample("x", torch.distributions.Normal(0, 1), (3,))
 
     approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0,
                                               scale=torch.ones(3))

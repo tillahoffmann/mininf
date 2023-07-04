@@ -91,7 +91,7 @@ class State(Dict[str, Any], SingletonContextMixin):
 
         .. doctest::
 
-            >>> from minivb import sample, State
+            >>> from mininf import sample, State
             >>> from torch.distributions import Normal
 
             # Sample within a state context to record parameters.
@@ -256,7 +256,7 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
 
         .. doctest::
 
-            >>> from minivb import sample
+            >>> from mininf import sample
             >>> from torch.distributions import Normal
 
             >>> sample("x", Normal(0, 1), (3,))
@@ -293,7 +293,7 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
 
         .. doctest::
 
-            >>> from minivb import condition, sample
+            >>> from mininf import condition, sample
             >>> import torch
             >>> from torch.distributions import Normal
 

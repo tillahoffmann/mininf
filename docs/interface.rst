@@ -1,25 +1,25 @@
 Interface
 =========
 
-minivb's core functionality comprises only two functions: Drawing random variables using :func:`.sample` and conditioning a model on data using :func:`.condition`. See :doc:`../examples/examples` for extensive illustrations.
+mininf's core functionality comprises only two functions: Drawing random variables using :func:`.sample` and conditioning a model on data using :func:`.condition`. See :doc:`../examples/examples` for extensive illustrations.
 
-.. autofunction:: minivb.sample
+.. autofunction:: mininf.sample
 
-.. autofunction:: minivb.condition
+.. autofunction:: mininf.condition
 
 Parameters obtained by sampling or conditioning are managed by :class:`.State` objects. They act as a tape and record all sampling and conditioning statements. It is not necessary to handle state manually, but using :class:`.State` objects can be useful for debugging and model inspection (see :doc:`../examples/regression-with-feature-uncertainty` for an example).
 
-.. autoclass:: minivb.State
+.. autoclass:: mininf.State
 
 Neural Networks for Inference
 -----------------------------
 
 The :code:`nn` module provides a range of modules for variational Bayesian inference, most prominently distributions with trainable parameters as :class:`.ParameterizedDistribution` and an evidence lower bound estimator as :class:`.EvidenceLowerBoundLoss`. An exhaustive list of modules and convenience functions is shown below.
 
-.. autoclass:: minivb.nn.ParameterizedDistribution
+.. autoclass:: mininf.nn.ParameterizedDistribution
 
-.. autoclass:: minivb.nn.ParameterizedFactorizedDistribution
+.. autoclass:: mininf.nn.ParameterizedFactorizedDistribution
 
-.. autoclass:: minivb.nn.FactorizedDistribution
+.. autoclass:: mininf.nn.FactorizedDistribution
 
-.. autoclass:: minivb.nn.EvidenceLowerBoundLoss
+.. autoclass:: mininf.nn.EvidenceLowerBoundLoss

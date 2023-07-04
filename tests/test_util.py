@@ -1,4 +1,4 @@
-from minivb.util import check_constraint, get_masked_data_with_dense_grad
+from mininf.util import check_constraint, get_masked_data_with_dense_grad
 import pytest
 import torch
 from torch.distributions.constraints import Constraint

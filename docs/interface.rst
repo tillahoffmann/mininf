@@ -11,10 +11,14 @@ Parameters obtained by sampling or conditioning are managed by :class:`.State` o
 
 .. autoclass:: mininf.State
 
+The :class:`.Placeholder` allow input arguments for your models to be treated like a random variable. Plaeholders can be useful, for example, to supply sample sizes to your model or perform hyperparameter sweeps without expanding the arguments of the model function.
+
+.. autoclass:: mininf.Placeholder
+
 Neural Networks for Inference
 -----------------------------
 
-The :code:`nn` module provides a range of modules for variational Bayesian inference, most prominently distributions with trainable parameters as :class:`.ParameterizedDistribution` and an evidence lower bound estimator as :class:`.EvidenceLowerBoundLoss`. An exhaustive list of modules and convenience functions is shown below.
+The :code:`nn` module provides functionality for variational Bayesian inference, most prominently distributions with trainable parameters as :class:`.ParameterizedDistribution` and an evidence lower bound estimator as :class:`.EvidenceLowerBoundLoss`. An exhaustive list of modules and convenience functions is shown below.
 
 .. autoclass:: mininf.nn.ParameterizedDistribution
 
@@ -23,3 +27,12 @@ The :code:`nn` module provides a range of modules for variational Bayesian infer
 .. autoclass:: mininf.nn.FactorizedDistribution
 
 .. autoclass:: mininf.nn.EvidenceLowerBoundLoss
+
+Utility Functions and Classes
+-----------------------------
+
+The :code:`util` module offers supporting functionality.
+
+.. autofunction:: mininf.util.check_constraint
+
+.. autofunction:: mininf.util.get_masked_data_with_dense_grad

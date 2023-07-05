@@ -1,6 +1,7 @@
 from __future__ import annotations
 import functools as ft
 import logging
+import numbers
 import torch
 from torch.distributions import Distribution
 from torch.distributions.constraints import Constraint
@@ -324,3 +325,58 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
         return model(*args, **kwargs)
 
     return _wrapper
+
+
+class Placeholder(Distribution):
+    """
+    Placeholder or default value.
+
+    Args:
+        value: Default value.
+        shape: Target shape of the value if set by conditioning (defaults to a scalar).
+        support: Support of the target value.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import condition, sample, Placeholder
+            >>> from torch.distributions.constraints import nonnegative_integer
+
+            >>> def model():
+            ...     return sample("n", Placeholder(torch.as_tensor(3), support=nonnegative_integer))
+            >>> model()
+            tensor(3)
+
+            >>> condition(model, n=torch.as_tensor(-3))()
+            Traceback (most recent call last):
+              ...
+            ValueError: Parameter 'n' is not in the support of Placeholder().
+    """
+    def __init__(self, value=None, shape=None, support=None, validate_args=None):
+        if value is not None and isinstance(value, numbers.Number):
+            value = torch.as_tensor(value)
+        if shape is None and value is not None:
+            shape = value.shape
+        shape = _normalize_shape(shape)
+        super().__init__((), shape, validate_args)
+
+        self.value = value
+        self._support = support or torch.distributions.constraints.real
+
+        if value is not None and not check_constraint(self.support, value).all():
+            raise ValueError(f"Default value is not in the specified support {self.support}.")
+
+    arg_constraints = {}
+
+    @property
+    def support(self) -> Constraint:
+        return self._support
+
+    def sample(self, sample_shape):
+        if self.value is None:
+            raise ValueError("No default value given. Did you mean to condition the placeholder?")
+        return self.value
+
+    def log_prob(self, value):
+        return 0.0

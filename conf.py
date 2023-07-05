@@ -21,8 +21,12 @@ exclude_patterns = [
     "**/jupyter_execute",
     "playground",
 ]
+# See https://github.com/sphinx-doc/sphinx/issues/10785 for some references.
 nitpick_ignore = [
     ("py:class", "torch.Size"),
+    ("py:class", "mininf.util.T"),
+    ("py:class", "torch.masked.maskedtensor.core.MaskedTensor"),
+    ("py:meth", "torch.masked.MaskedTensor.get_data"),
 ]
 add_module_names = False
 autodoc_typehints_format = "short"

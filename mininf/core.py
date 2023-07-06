@@ -379,4 +379,4 @@ class Placeholder(Distribution):
         return self.value
 
     def log_prob(self, value):
-        return 0.0
+        return torch.as_tensor(0.0)

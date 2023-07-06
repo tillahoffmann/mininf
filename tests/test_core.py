@@ -292,6 +292,7 @@ def test_placeholder_log_prob() -> None:
         model()
 
     assert log_prob["x"] == 0
+    assert log_prob.total == 0
 
 
 def test_placeholder_support() -> None:

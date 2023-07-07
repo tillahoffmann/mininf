@@ -1,6 +1,6 @@
 import mininf
-from mininf.nn import EvidenceLowerBoundLoss, FactorizedDistribution, ParameterizedDistribution, \
-    ParameterizedFactorizedDistribution
+from mininf.nn import EvidenceLowerBoundLoss, FactorizedDistribution, LogLikelihoodLoss, \
+    ParameterizedDistribution, ParameterizedFactorizedDistribution
 from mininf.util import TensorDict
 import numpy as np
 import pytest
@@ -109,3 +109,21 @@ def test_factorized_parameterized_distribution() -> None:
     assert set(module) == {"a", "b"}
     assert isinstance(module()["a"], torch.distributions.Normal)
     assert isinstance(module()["b"], torch.distributions.Gamma)
+
+
+def test_log_likelihood_loss_with_grad() -> None:
+    def model() -> None:
+        mininf.sample("x", torch.distributions.Normal(0, 1), (3,))
+
+    estimate = torch.nn.Parameter(torch.ones(3))
+    loss = LogLikelihoodLoss()
+    loss_value = loss(model, {"x": estimate})
+    assert loss_value.grad_fn is not None
+
+    assert loss_value.ndim == 0
+    assert np.isfinite(loss_value.item())
+
+    # Check back-propagation.
+    assert estimate.grad is None
+    loss_value.backward()
+    assert estimate.grad is not None

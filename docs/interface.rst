@@ -30,6 +30,8 @@ The :code:`nn` module provides functionality for variational Bayesian inference,
 
 .. autoclass:: mininf.nn.EvidenceLowerBoundLoss
 
+.. autoclass:: mininf.nn.LogLikelihoodLoss
+
 Utility Functions and Classes
 -----------------------------
 

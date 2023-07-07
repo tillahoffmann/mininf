@@ -327,9 +327,9 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
     return _wrapper
 
 
-class Placeholder(Distribution):
+class Value(Distribution):
     """
-    Placeholder or default value.
+    Constant or value of a deterministic function applied to other random variables.
 
     Args:
         value: Default value.
@@ -340,20 +340,22 @@ class Placeholder(Distribution):
 
         .. doctest::
 
-            >>> from mininf import condition, sample, Placeholder
+            >>> from mininf import condition, sample
+            >>> from mininf.core import Value
             >>> from torch.distributions.constraints import nonnegative_integer
 
             >>> def model():
-            ...     return sample("n", Placeholder(torch.as_tensor(3), support=nonnegative_integer))
+            ...     return sample("n", Value(torch.as_tensor(3), support=nonnegative_integer))
             >>> model()
             tensor(3)
 
             >>> condition(model, n=torch.as_tensor(-3))()
             Traceback (most recent call last):
               ...
-            ValueError: Parameter 'n' is not in the support of Placeholder().
+            ValueError: Parameter 'n' is not in the support of Value(...).
     """
-    def __init__(self, value=None, shape=None, support=None, validate_args=None):
+    def __init__(self, value: torch.Tensor | None = None, shape: torch.Size | None = None,
+                 support: Constraint | None = None, validate_args: bool | None = None):
         if value is not None and isinstance(value, numbers.Number):
             value = torch.as_tensor(value)
         if shape is None and value is not None:
@@ -375,8 +377,60 @@ class Placeholder(Distribution):
 
     def sample(self, sample_shape):
         if self.value is None:
-            raise ValueError("No default value given. Did you mean to condition the placeholder?")
+            raise ValueError("No default value given. Did you mean to specify the value by "
+                             "conditioning?")
         return self.value
 
     def log_prob(self, value):
         return torch.as_tensor(0.0)
+
+    def __repr__(self) -> str:
+        attributes = {
+            "value": self.value,
+            "shape": self.event_shape,
+            "support": self.support,
+        }
+        attributes = ', '.join([f'{key}={value}' for key, value in attributes.items() if value is
+                                not None])
+        return f"Value({attributes})"
+
+
+def value(name: str, value: torch.Tensor | None = None, shape: torch.Size | None = None,
+          support: Constraint | None = None, validate_args: bool | None = None) -> torch.Tensor:
+    """
+    Specify the value of a deterministic variable or constant. If a value is omitted, the expected
+    shape of the value must be given and the value can later be specified by calling
+    :func:`.condition`.
+
+    Args:
+        name: Name of the variable.
+        value: Value of the variable.
+        shape: Shape of the variable.
+        support: Support of the variable.
+        validate_args: Validate the value of the variable.
+
+    Returns:
+        Value of the variable.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import condition, sample, value
+            >>> import torch
+            >>> from torch.distributions.constraints import nonnegative_integer
+
+            # Define a simple model and call it without and with conditioning.
+            >>> def model():
+            ...     n = value("n", 3, support=nonnegative_integer)
+            ...     return sample("x", torch.distributions.Normal(0, 1), [n])
+            >>> model().shape
+            torch.Size([3])
+            >>> condition(model, n=torch.as_tensor(5))().shape
+            torch.Size([5])
+            >>> condition(model, n=torch.as_tensor(-1))()
+            Traceback (most recent call last):
+              ...
+            ValueError: Parameter 'n' is not in the support of Value(...).
+    """
+    return sample(name, Value(value, shape, support, validate_args))

@@ -240,9 +240,9 @@ def test_log_prob_masked_grad() -> None:
     assert x.grad is not None
 
 
-def test_placeholder_without_default_or_shape() -> None:
+def test_value_without_default_or_shape() -> None:
     def model():
-        return mininf.sample("x", mininf.Placeholder())
+        return mininf.value("x")
 
     with pytest.raises(ValueError, match="No default value given."):
         model()
@@ -253,9 +253,9 @@ def test_placeholder_without_default_or_shape() -> None:
         mininf.condition(model, x=torch.randn(3))()
 
 
-def test_placeholder_with_shape() -> None:
+def test_value_with_shape() -> None:
     def model():
-        return mininf.sample("x", mininf.Placeholder(shape=(3, 4)))
+        return mininf.value("x", shape=(3, 4))
 
     with pytest.raises(ValueError, match="No default value given."):
         model()
@@ -264,11 +264,11 @@ def test_placeholder_with_shape() -> None:
     torch.testing.assert_close(mininf.condition(model, x=x)(), x)
 
 
-def test_placeholder_with_default() -> None:
+def test_value_with_default() -> None:
     default = torch.randn(5, 7)
 
     def model():
-        return mininf.sample("x", mininf.Placeholder(value=default))
+        return mininf.value("x", value=default)
 
     torch.testing.assert_close(model(), default)
 
@@ -276,17 +276,17 @@ def test_placeholder_with_default() -> None:
     torch.testing.assert_close(mininf.condition(model, x=x)(), x)
 
 
-def test_placeholder_with_scalar_default() -> None:
-    x = mininf.sample("x", mininf.Placeholder(3))
+def test_value_with_scalar_default() -> None:
+    x = mininf.value("x", 3)
     assert torch.is_tensor(x) and x == 3
 
-    x = mininf.sample("x", mininf.Placeholder(3.2))
+    x = mininf.value("x", 3.2)
     assert torch.is_tensor(x) and x == 3.2
 
 
-def test_placeholder_log_prob() -> None:
+def test_value_log_prob() -> None:
     def model():
-        mininf.sample("x", mininf.Placeholder(torch.randn(3, 4)))
+        mininf.value("x", torch.randn(3, 4))
 
     with mininf.State(x=torch.randn(3, 4)), mininf.core.LogProbTracer() as log_prob:
         model()
@@ -295,12 +295,12 @@ def test_placeholder_log_prob() -> None:
     assert log_prob.total == 0
 
 
-def test_placeholder_support() -> None:
+def test_value_support() -> None:
     with pytest.raises(ValueError, match="is not in the specified support"):
-        mininf.Placeholder(-3, support=constraints.nonnegative)
+        mininf.core.Value(-3, support=constraints.nonnegative)
 
     def model():
-        mininf.sample("x", mininf.Placeholder(support=constraints.nonnegative))
+        mininf.value("x", support=constraints.nonnegative)
 
-    with pytest.raises(ValueError, match="is not in the support of Placeholder()"):
+    with pytest.raises(ValueError, match=r"is not in the support of Value\(shape="):
         mininf.condition(model, x=torch.as_tensor(-2))()

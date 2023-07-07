@@ -1,11 +1,11 @@
-from .core import condition, Placeholder, sample, State
+from .core import condition, value, sample, State
 from . import nn
 
 
 __all__ = [
     "condition",
     "nn",
-    "Placeholder",
+    "value",
     "sample",
     "State",
 ]

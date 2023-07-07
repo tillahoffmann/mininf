@@ -361,7 +361,7 @@ class Value(Distribution):
         if shape is None and value is not None:
             shape = value.shape
         shape = _normalize_shape(shape)
-        super().__init__((), shape, validate_args)
+        super().__init__(torch.Size(), shape, validate_args)
 
         self.value = value
         self._support = support or torch.distributions.constraints.real
@@ -390,9 +390,8 @@ class Value(Distribution):
             "shape": self.event_shape,
             "support": self.support,
         }
-        attributes = ', '.join([f'{key}={value}' for key, value in attributes.items() if value is
-                                not None])
-        return f"Value({attributes})"
+        formatted = ', '.join([f'{k}={v}' for k, v in attributes.items() if v is not None])
+        return f"Value({formatted})"
 
 
 def value(name: str, value: torch.Tensor | None = None, shape: torch.Size | None = None,

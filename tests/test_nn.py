@@ -10,7 +10,7 @@ from typing import Set, Type
 
 
 @pytest.mark.parametrize("cls, params, _const, grads", [
-    (distributions.Normal, {"loc": 0, "scale": 1}, set(), {"loc", "scale"}),
+    (distributions.Normal, {"loc": 0.0, "scale": 1.0}, set(), {"loc", "scale"}),
     (distributions.Normal, {"loc": torch.randn(3), "scale": torch.ones(2, 1)}, {"loc"}, {"scale"}),
     (distributions.LKJCholesky, {"dim": 3, "concentration": 9}, set(), {"concentration"}),
 ])
@@ -51,7 +51,7 @@ def test_evidence_lower_bound_loss_with_grad() -> None:
     def model() -> None:
         mininf.sample("x", torch.distributions.Normal(0, 1), (3,))
 
-    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0,
+    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0.0,
                                               scale=torch.ones(3))
     loss = EvidenceLowerBoundLoss()
     loss_value = loss(model, {"x": approximation()})
@@ -74,7 +74,7 @@ def test_evidence_lower_bound_wrong_distribution_type() -> None:
 
 def test_parameterized_distribution_no_exposed_parameters() -> None:
     # Check that parameters are not directly exposed.
-    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0, scale=1)
+    approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0.0, scale=1.0)
     distribution = approximation()
     assert not isinstance(distribution.loc, torch.nn.Parameter)
     assert not isinstance(distribution.scale, torch.nn.Parameter)
@@ -103,8 +103,8 @@ def test_parameterized_distribution_input_cloned(clone: bool) -> None:
 
 def test_factorized_parameterized_distribution() -> None:
     module = ParameterizedFactorizedDistribution(
-        {"a": ParameterizedDistribution(torch.distributions.Normal, loc=0, scale=1)},
-        b=ParameterizedDistribution(torch.distributions.Gamma, concentration=3, rate=2),
+        {"a": ParameterizedDistribution(torch.distributions.Normal, loc=0.0, scale=1.0)},
+        b=ParameterizedDistribution(torch.distributions.Gamma, concentration=3.0, rate=2.0),
     )
     assert set(module) == {"a", "b"}
     assert isinstance(module()["a"], torch.distributions.Normal)

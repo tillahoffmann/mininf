@@ -1,11 +1,12 @@
-from .core import condition, Placeholder, sample, State
+from .core import broadcast_samples, condition, value, sample, State
 from . import nn
 
 
 __all__ = [
+    "broadcast_samples",
     "condition",
     "nn",
-    "Placeholder",
+    "value",
     "sample",
     "State",
 ]

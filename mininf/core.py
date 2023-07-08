@@ -5,7 +5,7 @@ import numbers
 import torch
 from torch.distributions import Distribution
 from torch.distributions.constraints import Constraint
-from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
+from typing import Any, Callable, cast, Dict, List, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 from unittest import mock
 
@@ -180,6 +180,8 @@ class LogProbTracer(TracerMixin, TensorDict):
     """
     def sample(self, state: State, name: str, distribution: Distribution,
                sample_shape: OptionalSize = None) -> torch.Tensor:
+        if isinstance(distribution, Value):
+            return state.get(name, distribution.value)
         if name in self:
             raise RuntimeError(f"Log probability has already been evaluated for '{name}'. Did you "
                                "call `sample` twice with the same variable name?")
@@ -327,9 +329,9 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
     return _wrapper
 
 
-class Placeholder(Distribution):
+class Value(Distribution):
     """
-    Placeholder or default value.
+    Constant or value of a deterministic function applied to other random variables.
 
     Args:
         value: Default value.
@@ -340,26 +342,28 @@ class Placeholder(Distribution):
 
         .. doctest::
 
-            >>> from mininf import condition, sample, Placeholder
+            >>> from mininf import condition, sample
+            >>> from mininf.core import Value
             >>> from torch.distributions.constraints import nonnegative_integer
 
             >>> def model():
-            ...     return sample("n", Placeholder(torch.as_tensor(3), support=nonnegative_integer))
+            ...     return sample("n", Value(torch.as_tensor(3), support=nonnegative_integer))
             >>> model()
             tensor(3)
 
             >>> condition(model, n=torch.as_tensor(-3))()
             Traceback (most recent call last):
               ...
-            ValueError: Parameter 'n' is not in the support of Placeholder().
+            ValueError: Parameter 'n' is not in the support of Value(...).
     """
-    def __init__(self, value=None, shape=None, support=None, validate_args=None):
+    def __init__(self, value: torch.Tensor | None = None, shape: torch.Size | None = None,
+                 support: Constraint | None = None, validate_args: bool | None = None):
         if value is not None and isinstance(value, numbers.Number):
             value = torch.as_tensor(value)
         if shape is None and value is not None:
             shape = value.shape
         shape = _normalize_shape(shape)
-        super().__init__((), shape, validate_args)
+        super().__init__(torch.Size(), shape, validate_args)
 
         self.value = value
         self._support = support or torch.distributions.constraints.real
@@ -375,8 +379,150 @@ class Placeholder(Distribution):
 
     def sample(self, sample_shape):
         if self.value is None:
-            raise ValueError("No default value given. Did you mean to condition the placeholder?")
+            raise ValueError("No default value given. Did you mean to specify the value by "
+                             "conditioning?")
         return self.value
 
     def log_prob(self, value):
-        return 0.0
+        raise NotImplementedError("Values do not implement `log_prob` by design.")
+
+    def __repr__(self) -> str:
+        attributes = {
+            "value": self.value,
+            "shape": self.event_shape,
+            "support": self.support,
+        }
+        formatted = ', '.join([f'{k}={v}' for k, v in attributes.items() if v is not None])
+        return f"Value({formatted})"
+
+
+def value(name: str, value: torch.Tensor | None = None, shape: torch.Size | None = None,
+          support: Constraint | None = None, validate_args: bool | None = None) -> torch.Tensor:
+    """
+    Specify the value of a deterministic variable or constant. If a value is omitted, the expected
+    shape of the value must be given and the value can later be specified by calling
+    :func:`.condition`.
+
+    Args:
+        name: Name of the variable.
+        value: Value of the variable.
+        shape: Shape of the variable.
+        support: Support of the variable.
+        validate_args: Validate the value of the variable.
+
+    Returns:
+        Value of the variable.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import condition, sample, value
+            >>> import torch
+            >>> from torch.distributions.constraints import nonnegative_integer
+
+            # Define a simple model and call it without and with conditioning.
+            >>> def model():
+            ...     n = value("n", 3, support=nonnegative_integer)
+            ...     return sample("x", torch.distributions.Normal(0, 1), [n])
+            >>> model().shape
+            torch.Size([3])
+            >>> condition(model, n=torch.as_tensor(5))().shape
+            torch.Size([5])
+            >>> condition(model, n=torch.as_tensor(-1))()
+            Traceback (most recent call last):
+              ...
+            ValueError: Parameter 'n' is not in the support of Value(...).
+    """
+    return sample(name, Value(value, shape, support, validate_args))
+
+
+def _assert_same_batch_size(state: State) -> int:
+    """
+    Assert that samples have the same batch size along the first dimension and return the size.
+    """
+    if not state:
+        raise ValueError("Cannot check batch sizes because the state is empty.")
+
+    batch_sizes: Dict[int, List[str]] = {}
+    for key, value in state.items():
+        batch_sizes.setdefault(value.shape[0], []).append(key)
+
+    if len(batch_sizes) > 1:
+        raise ValueError(f"Inconsistent batch sizes: {batch_sizes}")
+
+    batch_size, = batch_sizes.keys()
+    return batch_size
+
+
+@overload
+def transpose_states(states: State) -> List[State]: ...
+
+
+@overload
+def transpose_states(states: List[State]) -> State: ...
+
+
+def transpose_states(states: State | List[State]) -> State | List[State]:
+    """
+    Transpose a list of states to a state of tensors or vice versa.
+
+    Args:
+        states: State comprising tensors with a leading batch dimension or list of states without
+            a leading batch dimension.
+
+    Returns:
+        List of states without a leading batch dimension or state comprising tensors with a leading
+        batch dimension.
+    """
+    if isinstance(states, dict):
+        batch_size = _assert_same_batch_size(states)
+        sequence: List[State] = []
+        for i in range(batch_size):
+            sequence.append(State({key: value[i] for key, value in states.items()}))
+        return sequence
+    else:
+        mapping: Dict[str, List] = {}
+        for state in states:
+            for key, value in state.items():
+                mapping.setdefault(key, []).append(value[None])
+        return State({key: torch.concatenate(values) for key, values in mapping.items()})
+
+
+def broadcast_samples(model: Callable, states: State | None = None, **params: torch.Tensor) \
+        -> State:
+    """
+    Broadcast samples with a leading batch dimension over a model.
+
+    Args:
+        model: Model to broadcast over.
+        states: State with a leading batch dimension.
+        params: Parameters with a leading batch dimension.
+
+    Returns:
+        State with a leading batch dimension after broadcasting over the model.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import broadcast_samples, sample
+            >>> import torch
+
+            >>> def model():
+            ...     a = sample("a", torch.distributions.Normal(0, 1))
+            ...     x = sample("x", torch.distributions.Normal(0, 1), [5])
+
+            >>> broadcast_samples(model, a=torch.randn(7))
+            <State at 0x... comprising {'a': Tensor(shape=(7,)), 'x': Tensor(shape=(7, 5))}>
+    """
+    states = states or State()
+    states.update(params)
+
+    # Broadcast the samples.
+    results = []
+    for value in transpose_states(states):
+        with value:
+            model()
+        results.append(value)
+    return transpose_states(results)

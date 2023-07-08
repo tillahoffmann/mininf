@@ -227,3 +227,32 @@ class EvidenceLowerBoundLoss(nn.Module):
         elbo = log_prob.total + approximation.entropy()
 
         return - elbo
+
+
+class LogLikelihoodLoss(nn.Module):
+    """
+    Evaluate the negative log likelihood.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import sample
+            >>> from mininf.nn import LogLikelihoodLoss
+            >>> from torch.distributions import Normal
+
+            # Declare a simple model.
+            >>> def model() -> None:
+            ...     sample("x", Normal(0, 1))
+
+            # Evaluate the negative log likelihood at a fixed parameter value.
+            >>> loss = LogLikelihoodLoss()
+            >>> loss(model, {"x": torch.as_tensor(0.1)})
+            tensor(0.9239)
+    """
+    def forward(self, model: Callable, parameters: TensorDict) -> torch.Tensor:
+        """"""  # Hide `forward` docstring in documentation.
+        with LogProbTracer() as log_prob:
+            # Ignoring type checks here because mypy gets confused about the dictionary expansion.
+            condition(model, **parameters)()  # type: ignore
+        return - log_prob.total

@@ -11,9 +11,15 @@ Parameters obtained by sampling or conditioning are managed by :class:`.State` o
 
 .. autoclass:: mininf.State
 
-The :class:`.Placeholder` allow input arguments for your models to be treated like a random variable. Plaeholders can be useful, for example, to supply sample sizes to your model or perform hyperparameter sweeps without expanding the arguments of the model function.
+The :func:`.value` function allows input arguments for your models to be treated like a random variable (see :class:`.Value` for details). Values can be useful, for example, to supply sample sizes to your model, perform hyperparameter sweeps without expanding the arguments of the model function, or recording values for debugging purposes.
 
-.. autoclass:: mininf.Placeholder
+.. autofunction:: mininf.value
+
+.. autoclass:: mininf.core.Value
+
+After fitting models, we often want to draw posterior samples and make predictions using the model for each sample. The :func:`.broadcast_samples` function does just that.
+
+.. autofunction:: mininf.broadcast_samples
 
 Neural Networks for Inference
 -----------------------------
@@ -27,6 +33,8 @@ The :code:`nn` module provides functionality for variational Bayesian inference,
 .. autoclass:: mininf.nn.FactorizedDistribution
 
 .. autoclass:: mininf.nn.EvidenceLowerBoundLoss
+
+.. autoclass:: mininf.nn.LogLikelihoodLoss
 
 Utility Functions and Classes
 -----------------------------

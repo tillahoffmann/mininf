@@ -291,7 +291,7 @@ def test_value_log_prob() -> None:
     with mininf.State(x=torch.randn(3, 4)), mininf.core.LogProbTracer() as log_prob:
         model()
 
-    assert log_prob["x"] == 0
+    assert "x" not in log_prob
     assert log_prob.total == 0
 
 

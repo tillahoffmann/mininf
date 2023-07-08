@@ -180,6 +180,8 @@ class LogProbTracer(TracerMixin, TensorDict):
     """
     def sample(self, state: State, name: str, distribution: Distribution,
                sample_shape: OptionalSize = None) -> torch.Tensor:
+        if isinstance(distribution, Value):
+            return state.get(name, distribution.value)
         if name in self:
             raise RuntimeError(f"Log probability has already been evaluated for '{name}'. Did you "
                                "call `sample` twice with the same variable name?")
@@ -382,7 +384,7 @@ class Value(Distribution):
         return self.value
 
     def log_prob(self, value):
-        return torch.as_tensor(0.0)
+        raise NotImplementedError("Values do not implement `log_prob` by design.")
 
     def __repr__(self) -> str:
         attributes = {

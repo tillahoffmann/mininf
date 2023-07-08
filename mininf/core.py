@@ -1,7 +1,6 @@
 from __future__ import annotations
 import functools as ft
 import logging
-import numbers
 import torch
 from torch.distributions import Distribution
 from torch.distributions.constraints import Constraint
@@ -10,7 +9,7 @@ from typing_extensions import Self
 from unittest import mock
 
 from .util import _format_dict_compact, _normalize_shape, check_constraint, \
-    get_masked_data_with_dense_grad, OptionalSize, TensorDict
+    get_masked_data_with_dense_grad, maybe_as_tensor, OptionalSize, TensorDict
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -140,11 +139,12 @@ class TracerMixin(SingletonContextMixin):
                sample_shape: OptionalSize = None) -> torch.Tensor:
         raise NotImplementedError
 
-    def _assert_valid_parameter(self, value: torch.Tensor, name: str,
+    def _assert_valid_parameter(self, value: torch.Tensor | None, name: str,
                                 distribution: torch.distributions.Distribution,
-                                sample_shape: OptionalSize = None) -> None:
+                                sample_shape: OptionalSize = None) -> torch.Tensor | None:
         if not self._validate_parameters:
-            return
+            return value
+        value = maybe_as_tensor(value)
         if not isinstance(value, torch.Tensor):
             raise TypeError(f"Expected a tensor for parameter '{name}' but got {type(value)}.")
 
@@ -157,6 +157,7 @@ class TracerMixin(SingletonContextMixin):
         support = cast(torch.distributions.constraints.Constraint, distribution.support)
         if not check_constraint(support, value).all():
             raise ValueError(f"Parameter '{name}' is not in the support of {distribution}.")
+        return value
 
 
 class SampleTracer(TracerMixin):
@@ -307,13 +308,14 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
             tensor(...)
 
             # Sampling from the conditioned model always yields the same value.
-            >>> conditioned = condition(model, x=torch.as_tensor(0.3))
+            >>> conditioned = condition(model, x=0.3)
             >>> conditioned()
             tensor(0.3000)
     """
     # Coalesce all the values.
     values = values or {}
     values.update(kwargs)
+    values = {key: cast(torch.Tensor, maybe_as_tensor(value)) for key, value in values.items()}
 
     @with_active_state
     @ft.wraps(model)
@@ -347,19 +349,18 @@ class Value(Distribution):
             >>> from torch.distributions.constraints import nonnegative_integer
 
             >>> def model():
-            ...     return sample("n", Value(torch.as_tensor(3), support=nonnegative_integer))
+            ...     return sample("n", Value(3, support=nonnegative_integer))
             >>> model()
             tensor(3)
 
-            >>> condition(model, n=torch.as_tensor(-3))()
+            >>> condition(model, n=-3)()
             Traceback (most recent call last):
               ...
             ValueError: Parameter 'n' is not in the support of Value(...).
     """
     def __init__(self, value: torch.Tensor | None = None, shape: torch.Size | None = None,
                  support: Constraint | None = None, validate_args: bool | None = None):
-        if value is not None and isinstance(value, numbers.Number):
-            value = torch.as_tensor(value)
+        value = maybe_as_tensor(value)
         if shape is None and value is not None:
             shape = value.shape
         shape = _normalize_shape(shape)
@@ -427,9 +428,9 @@ def value(name: str, value: torch.Tensor | None = None, shape: torch.Size | None
             ...     return sample("x", torch.distributions.Normal(0, 1), [n])
             >>> model().shape
             torch.Size([3])
-            >>> condition(model, n=torch.as_tensor(5))().shape
+            >>> condition(model, n=5)().shape
             torch.Size([5])
-            >>> condition(model, n=torch.as_tensor(-1))()
+            >>> condition(model, n=-1)()
             Traceback (most recent call last):
               ...
             ValueError: Parameter 'n' is not in the support of Value(...).
@@ -485,6 +486,7 @@ def transpose_states(states: State | List[State]) -> State | List[State]:
         mapping: Dict[str, List] = {}
         for state in states:
             for key, value in state.items():
+                value = cast(torch.Tensor, maybe_as_tensor(value))
                 mapping.setdefault(key, []).append(value[None])
         return State({key: torch.concatenate(values) for key, values in mapping.items()})
 

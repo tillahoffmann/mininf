@@ -68,7 +68,7 @@ Having optimized the variational approximation, we draw posterior samples and vi
 # Draw posterior samples and broadcast them over the model to get predictions.
 samples = approximation().sample([100])
 
-nlin = torch.as_tensor(101)
+nlin = 101
 lin = torch.linspace(state["x"].min() - 0.1, state["x"].max() + 0.1, nlin)
 predictions = mininf.broadcast_samples(mininf.condition(model, n=nlin, x=lin), samples)
 

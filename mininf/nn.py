@@ -7,7 +7,7 @@ from torch import distributions, nn
 from typing import Callable, cast, Dict, Set, Type
 
 from .core import condition, LogProbTracer
-from .util import _normalize_shape, OptionalSize, TensorDict
+from .util import _normalize_shape, maybe_as_tensor, OptionalSize, TensorDict
 
 
 DistributionDict = Dict[str, torch.distributions.Distribution]
@@ -69,8 +69,7 @@ class ParameterizedDistribution(nn.Module):
                 continue
 
             # Transform to an unconstrained space and label as parameters.
-            if not torch.is_tensor(value):
-                value = torch.as_tensor(value, dtype=torch.get_default_dtype())
+            value = cast(torch.Tensor, maybe_as_tensor(value))
             arg_constraint = cast(Dict[str, torch.distributions.constraints.Constraint],
                                   cls.arg_constraints)[name]
             transform = distributions.transform_to(arg_constraint)
@@ -172,8 +171,8 @@ class ParameterizedFactorizedDistribution(nn.ModuleDict):
             >>> from torch.distributions import Gamma, Normal
 
             >>> distributions = ParameterizedFactorizedDistribution(
-            ...     x=ParameterizedDistribution(Normal, loc=0, scale=1),
-            ...     y=ParameterizedDistribution(Gamma, concentration=2, rate=2),
+            ...     x=ParameterizedDistribution(Normal, loc=0.0, scale=1.0),
+            ...     y=ParameterizedDistribution(Gamma, concentration=2.0, rate=2.0),
             ... )
             >>> distributions()
             {'x': Normal(loc: 0.0, scale: 1.0), 'y': Gamma(concentration: 2.0, rate: 2.0)}
@@ -247,7 +246,7 @@ class LogLikelihoodLoss(nn.Module):
 
             # Evaluate the negative log likelihood at a fixed parameter value.
             >>> loss = LogLikelihoodLoss()
-            >>> loss(model, {"x": torch.as_tensor(0.1)})
+            >>> loss(model, {"x": 0.1})
             tensor(0.9239)
     """
     def forward(self, model: Callable, parameters: TensorDict) -> torch.Tensor:

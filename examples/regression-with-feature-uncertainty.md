@@ -69,9 +69,9 @@ We have defined a model and generated synthetic data. To recover the parameters 
 ```{code-cell} ipython3
 approximation = nn.ParameterizedFactorizedDistribution(
     z=nn.ParameterizedDistribution(Normal, loc=torch.zeros(n), scale=torch.ones(n)),
-    intercept=nn.ParameterizedDistribution(Normal, loc=0, scale=1),
-    slope=nn.ParameterizedDistribution(Normal, loc=0, scale=1),
-    population_scale=nn.ParameterizedDistribution(Gamma, concentration=2, rate=2),
+    intercept=nn.ParameterizedDistribution(Normal, loc=0.0, scale=1.0),
+    slope=nn.ParameterizedDistribution(Normal, loc=0.0, scale=1.0),
+    population_scale=nn.ParameterizedDistribution(Gamma, concentration=2.0, rate=2.0),
 )
 approximation()
 ```

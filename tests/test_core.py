@@ -105,7 +105,7 @@ def test_condition() -> None:
         mininf.sample("y", torch.distributions.Gamma(2, 2), (3,))
         return x
 
-    conditioned = mininf.condition(model, x=torch.as_tensor(0.3))
+    conditioned = mininf.condition(model, x=0.3)
 
     with mininf.State() as state1:
         conditioned()
@@ -121,12 +121,12 @@ def test_condition() -> None:
         model()
     assert abs(state["x"] - 0.3) > 1e-6
 
-    assert mininf.condition(model, x=torch.as_tensor(0.25))() == 0.25
+    assert mininf.condition(model, x=0.25)() == 0.25
 
     # Test conditioning with dictionaries and ensure precedence is right to left.
-    subset = {"x": torch.as_tensor(0.1)}
+    subset = {"x": 0.1}
     assert mininf.condition(model, subset)() == 0.1
-    assert mininf.condition(model, subset, x=torch.as_tensor(0.7))() == 0.7
+    assert mininf.condition(model, subset, x=0.7)() == 0.7
 
 
 def test_validate_sample() -> None:
@@ -183,10 +183,10 @@ def test_condition_conflict(strict: bool) -> None:
     def model() -> None:
         return mininf.sample("x", torch.distributions.Normal(0, 1))
 
-    conditioned1 = mininf.condition(model, x=torch.as_tensor(0.1), _strict=strict)
+    conditioned1 = mininf.condition(model, x=0.1, _strict=strict)
     assert conditioned1() == 0.1
 
-    conditioned2 = mininf.condition(conditioned1, x=torch.as_tensor(0.7))
+    conditioned2 = mininf.condition(conditioned1, x=0.7)
     if strict:
         with pytest.raises(ValueError, match="Cannot update"):
             conditioned2()
@@ -247,7 +247,7 @@ def test_value_without_default_or_shape() -> None:
     with pytest.raises(ValueError, match="No default value given."):
         model()
 
-    assert mininf.condition(model, x=torch.as_tensor(3))() == 3
+    assert mininf.condition(model, x=3)() == 3
 
     with pytest.raises(ValueError, match=r"Expected shape \(\) for parameter"):
         mininf.condition(model, x=torch.randn(3))()
@@ -303,7 +303,7 @@ def test_value_support() -> None:
         mininf.value("x", support=constraints.nonnegative)
 
     with pytest.raises(ValueError, match=r"is not in the support of Value\(shape="):
-        mininf.condition(model, x=torch.as_tensor(-2))()
+        mininf.condition(model, x=-2)()
 
 
 def test_broadcast_samples():
@@ -314,7 +314,7 @@ def test_broadcast_samples():
         mininf.value("y", x + a)
 
     x = torch.randn(7)
-    states = mininf.broadcast_samples(mininf.condition(model, a=torch.as_tensor(1.3)), x=x)
+    states = mininf.broadcast_samples(mininf.condition(model, a=1.3), x=x)
     torch.testing.assert_close(states["y"], x + 1.3)
 
 

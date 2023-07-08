@@ -1,3 +1,4 @@
+import numbers
 import torch
 from torch.distributions.constraints import Constraint
 from typing import Any, Dict, TypeVar
@@ -81,3 +82,18 @@ def get_masked_data_with_dense_grad(value: torch.masked.MaskedTensor) -> torch.T
             return torch.where(value._masked_mask, grad_output, 0)
 
     return GetData.apply(value)
+
+
+def maybe_as_tensor(value: Any) -> torch.Tensor | None:
+    """
+    Return a value as a tensor if it is convertible, allowing for raw numbers.
+
+    Args:
+        value: Value to convert to a tensor.
+
+    Returns:
+        Value as a tensor.
+    """
+    if value is not None and isinstance(value, numbers.Number):
+        value = torch.as_tensor(value)
+    return value

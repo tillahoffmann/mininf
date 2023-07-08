@@ -5,7 +5,7 @@ import numbers
 import torch
 from torch.distributions import Distribution
 from torch.distributions.constraints import Constraint
-from typing import Any, Callable, cast, Dict, Literal, overload, Type, TypeVar
+from typing import Any, Callable, cast, Dict, List, Literal, overload, Type, TypeVar
 from typing_extensions import Self
 from unittest import mock
 
@@ -435,3 +435,94 @@ def value(name: str, value: torch.Tensor | None = None, shape: torch.Size | None
             ValueError: Parameter 'n' is not in the support of Value(...).
     """
     return sample(name, Value(value, shape, support, validate_args))
+
+
+def _assert_same_batch_size(state: State) -> int:
+    """
+    Assert that samples have the same batch size along the first dimension and return the size.
+    """
+    if not state:
+        raise ValueError("Cannot check batch sizes because the state is empty.")
+
+    batch_sizes: Dict[int, List[str]] = {}
+    for key, value in state.items():
+        batch_sizes.setdefault(value.shape[0], []).append(key)
+
+    if len(batch_sizes) > 1:
+        raise ValueError(f"Inconsistent batch sizes: {batch_sizes}")
+
+    batch_size, = batch_sizes.keys()
+    return batch_size
+
+
+@overload
+def transpose_states(states: State) -> List[State]: ...
+
+
+@overload
+def transpose_states(states: List[State]) -> State: ...
+
+
+def transpose_states(states: State | List[State]) -> State | List[State]:
+    """
+    Transpose a list of states to a state of tensors or vice versa.
+
+    Args:
+        states: State comprising tensors with a leading batch dimension or list of states without
+            a leading batch dimension.
+
+    Returns:
+        List of states without a leading batch dimension or state comprising tensors with a leading
+        batch dimension.
+    """
+    if isinstance(states, dict):
+        batch_size = _assert_same_batch_size(states)
+        sequence: List[State] = []
+        for i in range(batch_size):
+            sequence.append(State({key: value[i] for key, value in states.items()}))
+        return sequence
+    else:
+        mapping: Dict[str, List] = {}
+        for state in states:
+            for key, value in state.items():
+                mapping.setdefault(key, []).append(value[None])
+        return State({key: torch.concatenate(values) for key, values in mapping.items()})
+
+
+def broadcast_samples(model: Callable, states: State | None = None, **params: torch.Tensor) \
+        -> State:
+    """
+    Broadcast samples with a leading batch dimension over a model.
+
+    Args:
+        model: Model to broadcast over.
+        states: State with a leading batch dimension.
+        params: Parameters with a leading batch dimension.
+
+    Returns:
+        State with a leading batch dimension after broadcasting over the model.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import broadcast_samples, sample
+            >>> import torch
+
+            >>> def model():
+            ...     a = sample("a", torch.distributions.Normal(0, 1))
+            ...     x = sample("x", torch.distributions.Normal(0, 1), [5])
+
+            >>> broadcast_samples(model, a=torch.randn(7))
+            <State at 0x... comprising {'a': Tensor(shape=(7,)), 'x': Tensor(shape=(7, 5))}>
+    """
+    states = states or State()
+    states.update(params)
+
+    # Broadcast the samples.
+    results = []
+    for value in transpose_states(states):
+        with value:
+            model()
+        results.append(value)
+    return transpose_states(results)

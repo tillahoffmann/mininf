@@ -304,3 +304,35 @@ def test_value_support() -> None:
 
     with pytest.raises(ValueError, match=r"is not in the support of Value\(shape="):
         mininf.condition(model, x=torch.as_tensor(-2))()
+
+
+def test_broadcast_samples():
+    def model():
+        a = mininf.value("a")
+        x = mininf.sample("x", torch.distributions.Normal(0, 1))
+        assert x.shape == ()
+        mininf.value("y", x + a)
+
+    x = torch.randn(7)
+    states = mininf.broadcast_samples(mininf.condition(model, a=torch.as_tensor(1.3)), x=x)
+    torch.testing.assert_close(states["y"], x + 1.3)
+
+
+def test_assert_same_batch_size() -> None:
+    assert mininf.core._assert_same_batch_size({"a": torch.randn(5), "b": torch.randn(5, 7)}) == 5
+    with pytest.raises(ValueError, match="Inconsistent batch sizes"):
+        mininf.core._assert_same_batch_size({"a": torch.randn(5), "b": torch.randn(7, 5)})
+    with pytest.raises(ValueError, match="state is empty"):
+        mininf.core._assert_same_batch_size({})
+
+
+def test_transpose_samples() -> None:
+    a = torch.randn(5)
+    b = torch.randn(5, 7, 8)
+    states = {"a": a, "b": b}
+    sequence = mininf.core.transpose_states(states)
+    assert len(sequence) == 5
+    reconstructed = mininf.core.transpose_states(sequence)
+    assert set(states) == set(reconstructed)
+    for key, value in states.items():
+        torch.testing.assert_close(reconstructed[key], value)

@@ -17,6 +17,10 @@ The :func:`.value` function allows input arguments for your models to be treated
 
 .. autoclass:: mininf.core.Value
 
+After fitting models, we often want to draw posterior samples and make predictions using the model for each sample. The :func:`.broadcast_samples` function does just that.
+
+.. autofunction:: mininf.broadcast_samples
+
 Neural Networks for Inference
 -----------------------------
 

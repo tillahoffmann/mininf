@@ -1,8 +1,21 @@
+---
+jupytext:
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.14.5
+kernelspec:
+  display_name: Python 3 (ipykernel)
+  language: python
+  name: python3
+---
+
 # Posterior Predictive Distribution
 
 In addition to inferring model parameters, we often want to make predictions about future or held-out data. Making predictions is also important for validating models, e.g., using posterior predictive checks. In this example, we use a simple quadratic regression model to make predictions about held-out data. We use {func}`mininf.value` to specify the sample size so we can apply the same model to training and test data.
 
-```python
+```{code-cell} ipython3
 from matplotlib import pyplot as plt
 import mininf
 import torch
@@ -39,7 +52,7 @@ fig.tight_layout()
 
 We use independent posterior factors for the regression parameters $\theta$ and the observation noise scale $\sigma$ and fit the model by optimizing the evidence lower bound.
 
-```python
+```{code-cell} ipython3
 # Define the factorized approximation.
 conditioned = mininf.condition(model, state.subset("x", "y"))
 approximation = mininf.nn.ParameterizedFactorizedDistribution(
@@ -64,7 +77,7 @@ for _ in range(1000):
 
 Having optimized the variational approximation, we draw posterior samples and visualize them by broadcasting them over the model using {func}`.broadcast_samples`. Broadcasting applies the model to each sample independently, treating the leading dimension as a batch dimension.
 
-```python
+```{code-cell} ipython3
 # Draw posterior samples and broadcast them over the model to get predictions.
 samples = approximation().sample([100])
 

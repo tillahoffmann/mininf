@@ -1,9 +1,10 @@
 import numbers
 import torch
 from torch.distributions.constraints import Constraint
-from typing import Any, Dict, TypeVar
+from typing import Any, Dict, Tuple, TypeVar
 
 
+OptionalDims = int | Tuple[int] | None
 OptionalSize = torch.Size | None
 TensorDict = Dict[str, torch.Tensor]
 T = TypeVar("T", bound=torch.Tensor)
@@ -18,6 +19,16 @@ def _normalize_shape(shape: OptionalSize) -> torch.Size:
     if isinstance(shape, torch.Size):
         return shape
     return torch.Size(shape)
+
+
+def _normalize_dims(dims: OptionalDims) -> Tuple[int]:
+    """
+    Normalize dimensions.
+    """
+    if isinstance(dims, int):
+        return (dims,)
+    else:
+        return dims
 
 
 def _format_dict_compact(value: Dict[str, Any | torch.Tensor]) -> str:

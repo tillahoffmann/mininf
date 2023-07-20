@@ -1,3 +1,4 @@
+import logging
 import mininf
 import numpy as np
 import pytest
@@ -66,7 +67,7 @@ def test_log_prob() -> None:
         with mininf.core.LogProbTracer() as log_prob:
             model()
 
-    np.testing.assert_allclose(log_prob["x"], distribution.log_prob(state["x"]))
+    np.testing.assert_allclose(log_prob["x"][0], distribution.log_prob(state["x"]))
     assert log_prob.total.ndim == 0
 
 
@@ -143,6 +144,9 @@ def test_validate_sample() -> None:
     with pytest.raises(ValueError, match="Expected shape"):
         mininf.condition(model, x=torch.distributions.LKJCholesky(2, 4).sample())()
 
+    with pytest.raises(ValueError, match="Expected shape"):
+        mininf.condition(model, x=torch.distributions.LKJCholesky(2, 4).sample((5, 6)))()
+
     with pytest.raises(ValueError, match="is not in the support"):
         mininf.condition(model, x=torch.randn(5, 7, 2, 2))()
 
@@ -214,7 +218,7 @@ def test_log_prob_masked() -> None:
         model()
 
     original_log_prob = distribution.log_prob(original)
-    assert (log_prob["x"].data[mask] == original_log_prob[mask]).all()
+    assert (log_prob["x"][0].data[mask] == original_log_prob[mask]).all()
     assert log_prob.total.ndim == 0
     torch.testing.assert_close(log_prob.total, original_log_prob[mask].sum())
 
@@ -336,3 +340,49 @@ def test_transpose_samples() -> None:
     assert set(states) == set(reconstructed)
     for key, value in states.items():
         torch.testing.assert_close(reconstructed[key], value)
+
+
+def test_log_prob_batched(caplog: pytest.LogCaptureFixture) -> None:
+    distribution = torch.distributions.Normal(0, 1)
+
+    def model(batch_dims):
+        mininf.sample("x", distribution, (14, 9), batch_dims=batch_dims)
+
+    # Batching along one dimension.
+    x = distribution.sample((7, 9))
+    with mininf.State(x=x), mininf.core.LogProbTracer() as log_prob:
+        model(0)
+    torch.testing.assert_close(log_prob["x"][0], distribution.log_prob(x))
+    torch.testing.assert_close(log_prob.total, distribution.log_prob(x).sum() * 2)
+
+    # Batching along the second dimension.
+    x = distribution.sample((14, 1))
+    with mininf.State(x=x), mininf.core.LogProbTracer() as log_prob:
+        model(1)
+    torch.testing.assert_close(log_prob.total, distribution.log_prob(x).sum() * 9)
+
+    # Batching along two dimensions (probably not that likely to be needed).
+    x = distribution.sample((2, 3))
+    with mininf.State(x=x), mininf.core.LogProbTracer() as log_prob:
+        model((0, 1))
+    torch.testing.assert_close(log_prob.total, distribution.log_prob(x).sum() * 21)
+
+    # Check for warnings if the batch size is larger than the expected shape.
+    x = distribution.sample([15, 9])
+    with caplog.at_level(logging.WARNING), mininf.State(x=x), \
+            mininf.core.LogProbTracer() as log_prob:
+        model(0)
+    torch.testing.assert_close(log_prob.total, distribution.log_prob(x).sum() * 14 / 15)
+    assert "exceeds expected shape" in caplog.messages[0]
+
+    # Check that we cannot batch along non-iid dimensions.
+    with mininf.State(x=x), pytest.raises(ValueError, match="exceeds the sample shape"), \
+            mininf.core.LogProbTracer():
+        model(2)
+
+    # Check that we cannot batch masked data---at least for now.
+    with mininf.State(x=torch.masked.as_masked_tensor(x, x > 0)), \
+            mininf.core.LogProbTracer() as log_prob, \
+            pytest.raises(ValueError, match="not supported for masked data"):
+        model(0)
+        log_prob.total

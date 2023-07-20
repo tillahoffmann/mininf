@@ -13,7 +13,7 @@ kernelspec:
 
 # Regression with Feature Uncertainty
 
-Regression often assumes that features or covariates are measured without error. An assumption that is rarely met in practice. In this example, we consider a hierarchical regression model with features subject to observation noise. Let us jump straight to the model definition with mininf syntax (see {doc}`biased-coin` for an introduction).
+Regression often assumes that features or covariates are measured without error. An assumption that is rarely met in practice. In this example, we consider a hierarchical regression model with features subject to observation noise. Let us jump straight to the model definition with mininf syntax (see {doc}`../README` for an introduction).
 
 ```{code-cell} ipython3
 from matplotlib import pyplot as plt

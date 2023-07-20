@@ -1,5 +1,5 @@
-from mininf.util import _normalize_dims, check_constraint, get_masked_data_with_dense_grad, \
-    OptionalDims
+from mininf.util import _normalize_shape, check_constraint, get_masked_data_with_dense_grad, \
+    OptionalSize
 import pytest
 import torch
 from torch.distributions.constraints import Constraint
@@ -89,12 +89,12 @@ def test_masked_data_with_dense_grad() -> None:
     assert param.grad.is_sparse is False
 
 
-@pytest.mark.parametrize("dims, expected", [
-    (None, None),
+@pytest.mark.parametrize("shape, expected", [
+    (None, ()),
     (0, (0,)),
     (7, (7,)),
     ((0,), (0,)),
     ((3, 4), (3, 4)),
 ])
-def test_normalize_dims(dims: OptionalDims, expected: Tuple[int] | None) -> None:
-    assert _normalize_dims(dims) == expected
+def test_normalize_shape(shape: OptionalSize, expected: Tuple[int] | None) -> None:
+    assert _normalize_shape(shape) == torch.Size(expected)

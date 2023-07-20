@@ -4,12 +4,12 @@ import logging
 import torch
 from torch.distributions import Distribution
 from torch.distributions.constraints import Constraint
-from typing import Any, Callable, cast, Dict, List, Literal, overload, Type, TypeVar
+from typing import Any, Callable, cast, Dict, List, Literal, overload, Tuple, Type, TypeVar
 from typing_extensions import Self
 from unittest import mock
 
-from .util import _format_dict_compact, _normalize_dims, _normalize_shape, check_constraint, \
-    get_masked_data_with_dense_grad, maybe_as_tensor, OptionalDims, OptionalSize, TensorDict
+from .util import _format_dict_compact, _normalize_shape, check_constraint, \
+    get_masked_data_with_dense_grad, maybe_as_tensor, OptionalSize, TensorDict
 
 
 S = TypeVar("S", bound="SingletonContextMixin")
@@ -136,12 +136,12 @@ class TracerMixin(SingletonContextMixin):
         self._validate_parameters = _validate_parameters
 
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None, batch_dims: OptionalSize = None) -> torch.Tensor:
         raise NotImplementedError
 
     def _assert_valid_parameter(self, value: torch.Tensor | None, name: str,
                                 distribution: torch.distributions.Distribution,
-                                sample_shape: OptionalSize, batch_dims: OptionalDims) \
+                                sample_shape: OptionalSize, batch_dims: OptionalSize) \
             -> torch.Tensor | None:
         if not self._validate_parameters:
             return value
@@ -152,7 +152,7 @@ class TracerMixin(SingletonContextMixin):
         # Normalize the batch dimensions and sample shapes. Then verify batch dimensions are not
         # larger than the sample shape because we cannot batch along dimensions that are not iid.
         sample_shape = _normalize_shape(sample_shape)
-        batch_dims = _normalize_dims(batch_dims) or ()
+        batch_dims = _normalize_shape(batch_dims)
         for dim in batch_dims:
             if dim >= len(sample_shape):
                 raise ValueError(f"Batch dimension {dim} exceeds the sample shape {sample_shape}.")
@@ -189,7 +189,7 @@ class SampleTracer(TracerMixin):
     Draw samples from a distribution.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_dims: OptionalDims = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None, batch_dims: OptionalSize = None) -> torch.Tensor:
         sample_shape = _normalize_shape(sample_shape)
         value = state.get(name)
         if value is None:
@@ -199,12 +199,12 @@ class SampleTracer(TracerMixin):
         return value
 
 
-class LogProbTracer(TracerMixin, TensorDict):
+class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch.Size]]):
     """
     Evaluate the log probability of a state under the model.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_dims: OptionalDims = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None, batch_dims: OptionalSize = None) -> torch.Tensor:
         if isinstance(distribution, Value):
             return state.get(name, distribution.value)
         if name in self:
@@ -229,7 +229,7 @@ class LogProbTracer(TracerMixin, TensorDict):
             log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())  # type: ignore
         else:
             log_prob = distribution.log_prob(value)
-        self[name] = (log_prob, sample_shape, _normalize_dims(batch_dims))
+        self[name] = (log_prob, _normalize_shape(sample_shape), _normalize_shape(batch_dims))
         return value  # type: ignore
 
     @property
@@ -241,7 +241,7 @@ class LogProbTracer(TracerMixin, TensorDict):
                     raise ValueError("Batch dimensions are not supported for masked data.")
                 result += (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
             else:
-                factor = 1
+                factor: float = 1
                 if batch_dims:
                     # Evaluate the relative size of the expected shape and the observed shape. This
                     # gives us a factor by which to up-scale the contribution to the total log
@@ -252,7 +252,8 @@ class LogProbTracer(TracerMixin, TensorDict):
         return result
 
     def __repr__(self) -> str:
-        return _format_dict_compact(self)
+        return _format_dict_compact({key: value[0] for key, value in self.items()},
+                                    id(self), self.__class__.__name__)
 
 
 def with_active_state(func: Callable) -> Callable:
@@ -277,7 +278,7 @@ def with_active_state(func: Callable) -> Callable:
 
 @with_active_state
 def sample(state: State, name: str, distribution: Distribution, sample_shape: OptionalSize = None,
-           batch_dims: OptionalDims = None) -> torch.Tensor:
+           batch_dims: OptionalSize = None) -> torch.Tensor:
     """
     Draw a sample.
 

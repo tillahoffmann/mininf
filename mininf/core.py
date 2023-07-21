@@ -136,12 +136,12 @@ class TracerMixin(SingletonContextMixin):
         self._validate_parameters = _validate_parameters
 
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_dims: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None, batch_shape: OptionalSize = None) -> torch.Tensor:
         raise NotImplementedError
 
     def _assert_valid_parameter(self, value: torch.Tensor | None, name: str,
                                 distribution: torch.distributions.Distribution,
-                                sample_shape: OptionalSize, batch_dims: OptionalSize) \
+                                sample_shape: OptionalSize, batch_shape: OptionalSize) \
             -> torch.Tensor | None:
         if not self._validate_parameters:
             return value
@@ -151,31 +151,33 @@ class TracerMixin(SingletonContextMixin):
 
         # Normalize the batch dimensions and sample shapes. Then verify batch dimensions are not
         # larger than the sample shape because we cannot batch along dimensions that are not iid.
+        batch_shape = _normalize_shape(batch_shape)
         sample_shape = _normalize_shape(sample_shape)
-        batch_dims = _normalize_shape(batch_dims)
-        for dim in batch_dims:
-            if dim >= len(sample_shape):
-                raise ValueError(f"Batch dimension {dim} exceeds the sample shape {sample_shape}.")
+        actual_batch_shape = sample_shape + distribution.batch_shape
+        if len(batch_shape) > len(actual_batch_shape):
+            raise ValueError(f"Declared batch shape {batch_shape} for parameter '{name}' has more "
+                             f"dimensions than the actual batch shape {actual_batch_shape}.")
 
         # Verify the shapes, allowing for differences along batched dimensions. We wrap in try-catch
         # so we don't need to format the exception multiple times.
-        expected_shape = sample_shape + distribution.batch_shape + distribution.event_shape
+        shape = sample_shape + distribution.batch_shape + distribution.event_shape
+        actual_shape = value.shape
         try:
-            if len(value.shape) != len(expected_shape):
+            if len(shape) != len(actual_shape):
                 raise ValueError
-            for dim, (expected, sample) in enumerate(zip(expected_shape, value.shape)):
-                if expected != sample and dim not in batch_dims:
+            for dim, (size, actual_size) in enumerate(zip(shape, actual_shape)):
+                if actual_size != size and not dim < len(batch_shape):
                     raise ValueError
                 # Generally, we expected minibatching to *reduce* the size along batched dimensions.
-                if sample > expected:
-                    LOGGER.warning("Batched sample shape %s for parameter '%s' exceeds expected "
-                                   "shape %s along dimension %d.", value.shape, name,
-                                   expected_shape, dim)
+                if actual_size > size:
+                    LOGGER.warning("Actual batch shape %s for parameter '%s' exceeds expected "
+                                   "batch shape %s along dimension %d.", actual_batch_shape, name,
+                                   batch_shape, dim)
         except ValueError as ex:
-            formatted_expected_shape = ', '.join(f'{size}*' if dim in batch_dims else str(size) for
-                                                 dim, size in enumerate(expected_shape))
-            raise ValueError(f"Expected shape ({formatted_expected_shape}) for parameter '{name}' "
-                             f"but got {tuple(value.shape)}.") from ex
+            formatted_sizes = [f"{size}*" for size in batch_shape]
+            formatted_sizes.extend(str(size) for size in shape[len(batch_shape):])
+            raise ValueError(f"Expected shape ({', '.join(formatted_sizes)}) for parameter "
+                             f"'{name}' but got {tuple(value.shape)}.") from ex
 
         # Check the support of the value.
         support = cast(torch.distributions.constraints.Constraint, distribution.support)
@@ -189,13 +191,13 @@ class SampleTracer(TracerMixin):
     Draw samples from a distribution.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_dims: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None, batch_shape: OptionalSize = None) -> torch.Tensor:
         sample_shape = _normalize_shape(sample_shape)
         value = state.get(name)
         if value is None:
             value = distribution.sample(sample_shape)
             state[name] = value
-        self._assert_valid_parameter(value, name, distribution, sample_shape, batch_dims)
+        self._assert_valid_parameter(value, name, distribution, sample_shape, batch_shape)
         return value
 
 
@@ -204,7 +206,7 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch
     Evaluate the log probability of a state under the model.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_dims: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None, batch_shape: OptionalSize = None) -> torch.Tensor:
         if isinstance(distribution, Value):
             return state.get(name, distribution.value)
         if name in self:
@@ -214,7 +216,8 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch
         if value is None:
             raise ValueError(f"Cannot evaluate log probability; variable '{name}' is missing. Did "
                              "you forget to condition on observed data?")
-        self._assert_valid_parameter(value, name, distribution, sample_shape, batch_dims)
+        self._assert_valid_parameter(value, name, distribution, sample_shape,
+                                     _normalize_shape(batch_shape))
 
         # If the tensor is masked, we need to disable the internal validation of the sample and
         # handle the mask explicitly.
@@ -229,27 +232,37 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch
             log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())  # type: ignore
         else:
             log_prob = distribution.log_prob(value)
-        self[name] = (log_prob, _normalize_shape(sample_shape), _normalize_shape(batch_dims))
+        shape = _normalize_shape(sample_shape) + distribution.batch_shape + distribution.event_shape
+        self[name] = (log_prob, cast(torch.Size, shape), _normalize_shape(batch_shape))
         return value  # type: ignore
 
     @property
     def total(self) -> torch.Tensor:
-        result = torch.as_tensor(0.0)
-        for value, sample_shape, batch_dims in self.values():
-            if isinstance(value, torch.masked.MaskedTensor):
-                if batch_dims:
-                    raise ValueError("Batch dimensions are not supported for masked data.")
-                result += (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
+        return cast(torch.Tensor, sum(self.contribution(name) for name in self))
+
+    def contribution(self, name: str) -> torch.Tensor:
+        """
+        Evaluate the contribution of a parameter to the total log probability.
+
+        Args:
+            name: Name of the parameter.
+
+        Returns:
+            Contribution to the total log probability.
+        """
+        value, shape, batch_shape = self[name]
+        if isinstance(value, torch.masked.MaskedTensor):
+            if batch_shape:
+                raise ValueError("Batch dimensions are not supported for masked data.")
+            return (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
+        else:
+            if batch_shape:
+                # Evaluate the relative size of the expected shape and the observed shape. This
+                # gives us a factor by which to scale the contribution to the total log
+                # probability.
+                return value.sum() * batch_shape.numel() / value.shape[:len(batch_shape)].numel()
             else:
-                factor: float = 1
-                if batch_dims:
-                    # Evaluate the relative size of the expected shape and the observed shape. This
-                    # gives us a factor by which to up-scale the contribution to the total log
-                    # probability.
-                    for dim in batch_dims:
-                        factor *= sample_shape[dim] / value.shape[dim]
-                result += factor * value.sum()
-        return result
+                return value.sum()
 
     def __repr__(self) -> str:
         return _format_dict_compact({key: value[0] for key, value in self.items()},
@@ -278,18 +291,22 @@ def with_active_state(func: Callable) -> Callable:
 
 @with_active_state
 def sample(state: State, name: str, distribution: Distribution, sample_shape: OptionalSize = None,
-           batch_dims: OptionalSize = None) -> torch.Tensor:
+           batch_shape: OptionalSize = None) -> torch.Tensor:
     """
-    Draw a sample.
+    Draw a sample of a random variable.
 
     Args:
         name: Name of the random variable to sample.
         distribution: Distribution to sample from.
-        sample_shape: Batch shape of the sample.
-        batch_dims: Dimensions supporting minibatching.
+        sample_shape: Shape of the variables drawn as independent identically distributed samples.
+        batch_shape: Expected shape for the leading dimensions of the sample. If :code:`batch_shape`
+            differs from :code:`sample_shape + distribution.batch_shape`, contributions to the log
+            probability are scaled to obtain an unbiased estimate of the log probability as if the
+            shapes matched.
 
     Returns:
-        A sample from the distribution with the desired shape.
+        A sample from the distribution with shape
+        :code:`sample_shape + distribution.batch_shape + distribution.event_shape`.
 
     Example:
 
@@ -304,7 +321,7 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     tracer = TracerMixin.get_instance()
     if tracer is None:
         tracer = SampleTracer()
-    return tracer.sample(state, name, distribution, sample_shape, batch_dims)
+    return tracer.sample(state, name, distribution, sample_shape, batch_shape)
 
 
 def condition(model: Callable, values: TensorDict | None = None, *, _strict: bool = True,

@@ -256,6 +256,7 @@ numpy==1.25.0
     # via
     #   contourpy
     #   matplotlib
+    #   scipy
 overrides==7.3.1
     # via jupyter-server
 packaging==23.1
@@ -363,6 +364,8 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
+scipy==1.11.1
+    # via -r requirements.in
 send2trash==1.8.2
     # via
     #   jupyter-server

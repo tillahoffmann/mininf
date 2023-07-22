@@ -49,7 +49,7 @@ def test_factorized_distribution() -> None:
 
 def test_evidence_lower_bound_loss_with_grad() -> None:
     def model() -> None:
-        mininf.sample("x", torch.distributions.Normal(0, 1), (3,))
+        mininf.sample("x", torch.distributions.Normal(0, 1), 3)
 
     approximation = ParameterizedDistribution(torch.distributions.Normal, loc=0.0,
                                               scale=torch.ones(3))
@@ -113,7 +113,7 @@ def test_factorized_parameterized_distribution() -> None:
 
 def test_log_likelihood_loss_with_grad() -> None:
     def model() -> None:
-        mininf.sample("x", torch.distributions.Normal(0, 1), (3,))
+        mininf.sample("x", torch.distributions.Normal(0, 1), 3)
 
     estimate = torch.nn.Parameter(torch.ones(3))
     loss = LogLikelihoodLoss()

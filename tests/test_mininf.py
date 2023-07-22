@@ -6,7 +6,7 @@ def test_linear_regression_forward_backward() -> None:
     # Declare the model.
     def linear_regression(n: int, p: int) -> None:
         features = mininf.sample("features", torch.distributions.Normal(0, 1), (n, p))
-        coefs = mininf.sample("coefs", torch.distributions.Normal(0, 1), (p,))
+        coefs = mininf.sample("coefs", torch.distributions.Normal(0, 1), p)
         sigma = mininf.sample("sigma", torch.distributions.Gamma(2, 2))
         predictions = features @ coefs
         mininf.sample("outcomes", torch.distributions.Normal(predictions, sigma))

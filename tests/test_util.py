@@ -95,6 +95,8 @@ def test_masked_data_with_dense_grad() -> None:
     (7, (7,)),
     ((0,), (0,)),
     ((3, 4), (3, 4)),
+    (torch.as_tensor(5), (5,)),
+    (torch.as_tensor([3, 7]), (3, 7)),
 ])
 def test_normalize_shape(shape: OptionalSize, expected: Tuple[int] | None) -> None:
     assert _normalize_shape(shape) == torch.Size(expected)

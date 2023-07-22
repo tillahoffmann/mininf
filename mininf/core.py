@@ -314,7 +314,7 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
             >>> from mininf import sample
             >>> from torch.distributions import Normal
 
-            >>> sample("x", Normal(0, 1), (3,))
+            >>> sample("x", Normal(0, 1), 3)
             tensor([..., ..., ...])
     """
     tracer = TracerMixin.get_instance()

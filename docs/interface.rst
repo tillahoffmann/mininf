@@ -21,6 +21,12 @@ After fitting models, we often want to draw posterior samples and make predictio
 
 .. autofunction:: mininf.broadcast_samples
 
+For more efficient posterior approximation, mininf supports minibatch stochastic variational inference (see :doc:`../examples/minibatch` for an example) and allows certain log probability evaluations to be excluded.
+
+.. autofunction:: mininf.batch
+
+.. autofunction:: mininf.no_log_prob
+
 Neural Networks for Inference
 -----------------------------
 

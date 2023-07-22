@@ -4,7 +4,7 @@ from torch.distributions.constraints import Constraint
 from typing import Any, Dict, TypeVar
 
 
-OptionalSize = torch.Size | None
+OptionalSize = torch.Size | int | None
 TensorDict = Dict[str, torch.Tensor]
 T = TypeVar("T", bound=torch.Tensor)
 
@@ -15,12 +15,16 @@ def _normalize_shape(shape: OptionalSize) -> torch.Size:
     """
     if shape is None:
         return torch.Size()
-    if isinstance(shape, torch.Size):
+    elif isinstance(shape, int):
+        return torch.Size([shape])
+    elif isinstance(shape, torch.Size):
         return shape
-    return torch.Size(shape)
+    else:
+        return torch.Size(shape)
 
 
-def _format_dict_compact(value: Dict[str, Any | torch.Tensor]) -> str:
+def _format_dict_compact(value: Dict[str, Any | torch.Tensor], id_: int | None = None,
+                         name: str | None = None) -> str:
     """
     Format a dictionary using a compact representation of types or tensor shapes.
     """
@@ -29,7 +33,9 @@ def _format_dict_compact(value: Dict[str, Any | torch.Tensor]) -> str:
         isinstance(element, torch.Tensor) else type(element) for key, element in value.items()
     }
     formatted_elements = ", ".join(f"'{key}': {value}" for key, value in elements.items())
-    return f"<{value.__class__.__name__} at {hex(id(value))} comprising {{{formatted_elements}}}>"
+    name = name or value.__class__.__name__
+    id_ = id_ or id(value)
+    return f"<{name} at {hex(id_)} comprising {{{formatted_elements}}}>"
 
 
 def check_constraint(constraint: Constraint, value: T) -> T:

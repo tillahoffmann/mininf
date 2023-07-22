@@ -18,3 +18,6 @@ docs :
 
 doctests :
 	sphinx-build -b doctest . docs/_build
+
+clean :
+	rm -rf docs/_build docs/.jupyter_cache .coverage* .pytest_cache

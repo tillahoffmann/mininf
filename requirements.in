@@ -8,4 +8,5 @@ pytest
 pytest-cov
 jupyter
 jupytext
+scipy
 sphinx

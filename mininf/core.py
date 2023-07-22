@@ -4,7 +4,7 @@ import logging
 import torch
 from torch.distributions import Distribution
 from torch.distributions.constraints import Constraint
-from typing import Any, Callable, cast, Dict, List, Literal, overload, Type, TypeVar
+from typing import Any, Callable, cast, Dict, List, Literal, overload, Tuple, Type, TypeVar
 from typing_extensions import Self
 from unittest import mock
 
@@ -72,7 +72,7 @@ class SingletonContextMixin:
             strict: Raise an error if no context is active.
 
         Returns:
-            The active context or `None` if no context is active.
+            The active context or :code:`None` if no context is active.
         """
         key = cls._assert_singleton_key()
         active = cls.INSTANCES.get(key)
@@ -141,19 +141,45 @@ class TracerMixin(SingletonContextMixin):
 
     def _assert_valid_parameter(self, value: torch.Tensor | None, name: str,
                                 distribution: torch.distributions.Distribution,
-                                sample_shape: OptionalSize = None) -> torch.Tensor | None:
+                                sample_shape: OptionalSize) \
+            -> torch.Tensor | None:
         if not self._validate_parameters:
             return value
         value = maybe_as_tensor(value)
         if not isinstance(value, torch.Tensor):
             raise TypeError(f"Expected a tensor for parameter '{name}' but got {type(value)}.")
 
+        # Normalize the batch dimensions and sample shapes. Then verify batch dimensions are not
+        # larger than the sample shape because we cannot batch along dimensions that are not iid.
+        batch_shape = batch.get_shape()
         sample_shape = _normalize_shape(sample_shape)
-        expected_shape = sample_shape + distribution.batch_shape + distribution.event_shape
-        if value.shape != expected_shape:
-            raise ValueError(f"Expected shape {tuple(expected_shape)} for parameter '{name}' but "
-                             f"got {tuple(value.shape)}.")
+        actual_batch_shape = sample_shape + distribution.batch_shape
+        if len(batch_shape) > len(actual_batch_shape):
+            raise ValueError(f"Declared batch shape {batch_shape} for parameter '{name}' has more "
+                             f"dimensions than the actual batch shape {actual_batch_shape}.")
 
+        # Verify the shapes, allowing for differences along batched dimensions. We wrap in try-catch
+        # so we don't need to format the exception multiple times.
+        shape = sample_shape + distribution.batch_shape + distribution.event_shape
+        actual_shape = value.shape
+        try:
+            if len(shape) != len(actual_shape):
+                raise ValueError
+            for dim, (size, actual_size) in enumerate(zip(shape, actual_shape)):
+                if actual_size != size and not dim < len(batch_shape):
+                    raise ValueError
+                # Generally, we expected minibatching to *reduce* the size along batched dimensions.
+                if actual_size > size:
+                    LOGGER.warning("Actual batch shape %s for parameter '%s' exceeds expected "
+                                   "batch shape %s along dimension %d.", actual_batch_shape, name,
+                                   batch_shape, dim)
+        except ValueError as ex:
+            formatted_sizes = [f"{size}*" for size in batch_shape]
+            formatted_sizes.extend(str(size) for size in shape[len(batch_shape):])
+            raise ValueError(f"Expected shape ({', '.join(formatted_sizes)}) for parameter "
+                             f"'{name}' but got {tuple(value.shape)}.") from ex
+
+        # Check the support of the value.
         support = cast(torch.distributions.constraints.Constraint, distribution.support)
         if not check_constraint(support, value).all():
             raise ValueError(f"Parameter '{name}' is not in the support of {distribution}.")
@@ -175,7 +201,7 @@ class SampleTracer(TracerMixin):
         return value
 
 
-class LogProbTracer(TracerMixin, TensorDict):
+class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size]]):
     """
     Evaluate the log probability of a state under the model.
     """
@@ -192,6 +218,9 @@ class LogProbTracer(TracerMixin, TensorDict):
                              "you forget to condition on observed data?")
         self._assert_valid_parameter(value, name, distribution, sample_shape)
 
+        if no_log_prob.get_instance():
+            return value
+
         # If the tensor is masked, we need to disable the internal validation of the sample and
         # handle the mask explicitly.
         if isinstance(value, torch.masked.MaskedTensor):
@@ -205,21 +234,42 @@ class LogProbTracer(TracerMixin, TensorDict):
             log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())  # type: ignore
         else:
             log_prob = distribution.log_prob(value)
-        self[name] = log_prob
+
+        batch_shape = batch.get_shape()
+        self[name] = (log_prob, batch_shape)
         return value  # type: ignore
 
     @property
     def total(self) -> torch.Tensor:
-        result = torch.as_tensor(0.0)
-        for value in self.values():
-            if isinstance(value, torch.masked.MaskedTensor):
-                result += (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
+        return cast(torch.Tensor, sum(self.contribution(name) for name in self))
+
+    def contribution(self, name: str) -> torch.Tensor:
+        """
+        Evaluate the contribution of a parameter to the total log probability.
+
+        Args:
+            name: Name of the parameter.
+
+        Returns:
+            Contribution to the total log probability.
+        """
+        value, batch_shape = self[name]
+        if isinstance(value, torch.masked.MaskedTensor):
+            if batch_shape:
+                raise ValueError("Batch dimensions are not supported for masked data.")
+            return (get_masked_data_with_dense_grad(value)[value.get_mask()]).sum()
+        else:
+            if batch_shape:
+                # Evaluate the relative size of the expected shape and the observed shape. This
+                # gives us a factor by which to scale the contribution to the total log
+                # probability.
+                return value.sum() * batch_shape.numel() / value.shape[:len(batch_shape)].numel()
             else:
-                result += value.sum()
-        return result
+                return value.sum()
 
     def __repr__(self) -> str:
-        return _format_dict_compact(self)
+        return _format_dict_compact({key: value[0] for key, value in self.items()},
+                                    id(self), self.__class__.__name__)
 
 
 def with_active_state(func: Callable) -> Callable:
@@ -230,7 +280,7 @@ def with_active_state(func: Callable) -> Callable:
         func: Callable taking a :class:`.State` object as its first argument.
 
     Returns:
-        Callable wrapping `func` which ensures a state is active.
+        Callable wrapping :code:`func` which ensures a state is active.
     """
     @ft.wraps(func)
     def _wrapper(*args, **kwargs) -> Any:
@@ -246,15 +296,16 @@ def with_active_state(func: Callable) -> Callable:
 def sample(state: State, name: str, distribution: Distribution, sample_shape: OptionalSize = None) \
         -> torch.Tensor:
     """
-    Draw a sample.
+    Draw a sample of a random variable.
 
     Args:
         name: Name of the random variable to sample.
         distribution: Distribution to sample from.
-        sample_shape: Batch shape of the sample.
+        sample_shape: Shape of the variables drawn as independent identically distributed samples.
 
     Returns:
-        A sample from the distribution with the desired shape.
+        A sample from the distribution with shape
+        :code:`sample_shape + distribution.batch_shape + distribution.event_shape`.
 
     Example:
 
@@ -280,14 +331,14 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
     .. note::
 
         The first conditioning statement takes precedence if a parameter is conditioned multiple
-        times and `_strict` is `False`. If `_strict` is `True`, conditioning multiple times raises
-        an exception.
+        times and :code:`_strict` is :code:`False`. If :code:`_strict` is :code:`True`, conditioning
+        multiple times raises an exception.
 
     Args:
         model: Model to condition.
         values: Values to condition on as a dictionary of tensors.
-        _strict: Enforce that each parameter is conditioned on at most once (prefixed with `_` to
-            avoid possible conflicts with states having a `strict` key).
+        _strict: Enforce that each parameter is conditioned on at most once (prefixed with :code:`_`
+            to avoid possible conflicts with states having a :code:`strict` key).
         **kwargs: Values to condition on as keyword arguments.
 
     Returns:
@@ -528,3 +579,61 @@ def broadcast_samples(model: Callable, states: State | None = None, **params: to
             model()
         results.append(value)
     return transpose_states(results)
+
+
+class batch(SingletonContextMixin):
+    """
+    Batch log probability contributions.
+
+    Args:
+        shape: Leading dimensions of random variables to treat as a batch.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import batch, sample
+            >>> import torch
+
+            >>> def model():
+            ...     with batch(10):
+            ...         # Contributions to the log probability will be scaled if the leading
+            ...         # dimension of `x` does not have 10 elements.
+            ...         sample("x", torch.distributions.Normal(0, 1), 10)
+            >>> model()
+    """
+    SINGLETON_KEY = "batch"
+
+    def __init__(self, shape: torch.Size | int) -> None:
+        self.shape = _normalize_shape(shape)
+
+    @classmethod
+    def get_shape(cls) -> torch.Size:
+        """
+        Get the current batch shape.
+
+        Return:
+            Current batch shape.
+        """
+        instance = cls.get_instance()
+        return torch.Size() if instance is None else instance.shape
+
+
+class no_log_prob(SingletonContextMixin):
+    """
+    Do not evaluate contributions to the log probability.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import no_log_prob, sample
+            >>> import torch
+
+            >>> def model():
+            ...     with no_log_prob():
+            ...         # The log probability of this sample statement will not be evaluated.
+            ...         sample("x", torch.distributions.Normal(0, 1))
+            >>> model()
+    """
+    SINGLETON_KEY = "no_log_prob"

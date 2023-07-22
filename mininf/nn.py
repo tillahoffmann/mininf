@@ -32,12 +32,12 @@ class ParameterizedDistribution(nn.Module):
 
     Args:
         cls: Distribution type.
-        _const: Names of parameters to be treated as constant (prefixed with `_` to avoid possible
-            conflicts with distributions having a `const` parameter).
+        _const: Names of parameters to be treated as constant (prefixed with :code:`_` to avoid
+            possible conflicts with distributions having a :code:`const` parameter).
         _clone: Clone parameter tensors if they are not modified by transforming parameters to an
             unconstrained space. This ensures training does not modify inputs, e.g., if parameters
-            are initialized based on data (prefixed with `_` to avoid possible conflicts with
-            distributions having a `clone` parameter).
+            are initialized based on data (prefixed with :code:`_` to avoid possible conflicts with
+            distributions having a :code:`clone` parameter).
         **parameters: Parameter values passed to the distribution constructor.
 
     Example:

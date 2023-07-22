@@ -1,8 +1,9 @@
-from mininf.util import check_constraint, get_masked_data_with_dense_grad
+from mininf.util import _normalize_shape, check_constraint, get_masked_data_with_dense_grad, \
+    OptionalSize
 import pytest
 import torch
 from torch.distributions.constraints import Constraint
-from typing import Callable
+from typing import Callable, Tuple
 
 
 @pytest.mark.filterwarnings("ignore:permute is not implemented")
@@ -86,3 +87,14 @@ def test_masked_data_with_dense_grad() -> None:
     y = get_masked_data_with_dense_grad(torch.masked.as_masked_tensor(x * param, mask))
     torch.masked.as_masked_tensor(y, mask).sum().backward()
     assert param.grad.is_sparse is False
+
+
+@pytest.mark.parametrize("shape, expected", [
+    (None, ()),
+    (0, (0,)),
+    (7, (7,)),
+    ((0,), (0,)),
+    ((3, 4), (3, 4)),
+])
+def test_normalize_shape(shape: OptionalSize, expected: Tuple[int] | None) -> None:
+    assert _normalize_shape(shape) == torch.Size(expected)

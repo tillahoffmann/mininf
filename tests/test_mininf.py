@@ -30,4 +30,4 @@ def test_linear_regression_forward_backward() -> None:
     with mininf.core.LogProbTracer() as log_prob, state:
         linear_regression(50, 3)
 
-    assert {key: value.shape for key, value in log_prob.items()} == expected_shapes
+    assert {key: value[0].shape for key, value in log_prob.items()} == expected_shapes

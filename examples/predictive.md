@@ -28,9 +28,9 @@ def model():
     p = mininf.value("p", 3, support=nonnegative_integer)
 
     # Covariates and predictions.
-    x = mininf.sample("x", torch.distributions.Normal(0, 1), (n,))
+    x = mininf.sample("x", torch.distributions.Normal(0, 1), n)
     X = mininf.value("X", x[:, None] ** torch.arange(p))
-    theta = mininf.sample("theta", torch.distributions.Normal(0, 1), [p])
+    theta = mininf.sample("theta", torch.distributions.Normal(0, 1), p)
     prediction = mininf.value("prediction", X @ theta)
 
     # Observations.
@@ -69,7 +69,7 @@ approximation = mininf.nn.ParameterizedFactorizedDistribution(
 loss = mininf.nn.EvidenceLowerBoundLoss()
 optimizer = torch.optim.Adam(approximation.parameters(), 0.01)
 
-for _ in range(1000):
+for _ in range(3 if mininf.util.IN_CI else 1000):
     optimizer.zero_grad()
     loss(conditioned, approximation()).backward()
     optimizer.step()

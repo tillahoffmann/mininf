@@ -1,8 +1,11 @@
 import numbers
+import os
 import torch
 from torch.distributions.constraints import Constraint
 from typing import Any, cast, Dict, TypeVar
 
+
+IN_CI = "CI" in os.environ
 
 OptionalSize = torch.Size | torch.Tensor | int | None
 TensorDict = Dict[str, torch.Tensor]

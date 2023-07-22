@@ -19,9 +19,8 @@ Here is the model definition and a visualization of a sample from the prior pred
 
 ```{code-cell} ipython3
 from matplotlib import pyplot as plt
-from mininf import condition, nn, sample, State
-from mininf.distributions import InverseGamma
-import os
+import mininf
+import mininf.distributions
 import torch
 from torch.distributions import Gamma, MultivariateNormal, Normal
 
@@ -33,22 +32,22 @@ x = torch.linspace(0, 1, n)
 
 def model() -> None:
     # Marginal GP variance, length scale, and observation noise scale.
-    sigma = sample("sigma", Gamma(2, 2))
-    length_scale = sample("length_scale", InverseGamma(10, 1))
-    kappa = sample("kappa", Gamma(2, 10))
+    sigma = mininf.sample("sigma", Gamma(2, 2))
+    length_scale = mininf.sample("length_scale", mininf.distributions.InverseGamma(10, 1))
+    kappa = mininf.sample("kappa", Gamma(2, 10))
 
     # GP sample with squared exponential covariance and jitter.
     residuals = (x[:, None] - x) / length_scale
     cov = sigma * sigma * (- residuals ** 2 / 2).exp() + 1e-3 * torch.eye(n)
-    z = sample("z", MultivariateNormal(torch.zeros(n), cov))
+    z = mininf.sample("z", MultivariateNormal(torch.zeros(n), cov))
 
     # Observation model.
-    sample("y", Normal(z, kappa))
+    mininf.sample("y", Normal(z, kappa))
 
 
 # Sample from the prior predictive distribution, get a mask, and visualize both.
 torch.manual_seed(13)
-with State() as state:
+with mininf.State() as state:
     model()
 
 fraction_missing = 0.2
@@ -72,20 +71,20 @@ We approximate the non-negative marginal scale $\sigma$ and length scale $\ell$ 
 ```{code-cell} ipython3
 def infer(y):
     # Define the approximation and construct an optimizer.
-    approximation = nn.ParameterizedFactorizedDistribution(
-        z=nn.ParameterizedDistribution(torch.distributions.Normal, loc=torch.randn(n),
+    approximation = mininf.nn.ParameterizedFactorizedDistribution(
+        z=mininf.nn.ParameterizedDistribution(torch.distributions.Normal, loc=torch.randn(n),
                                        scale=torch.ones(n) * state["kappa"]),
-        sigma=nn.ParameterizedDistribution(torch.distributions.Gamma, concentration=2, rate=2),
-        length_scale=nn.ParameterizedDistribution(torch.distributions.Gamma, concentration=2, rate=2),
+        sigma=mininf.nn.ParameterizedDistribution(torch.distributions.Gamma, concentration=2, rate=2),
+        length_scale=mininf.nn.ParameterizedDistribution(torch.distributions.Gamma, concentration=2, rate=2),
     )
     optimizer = torch.optim.Adam(approximation.parameters(), 0.05)
 
     # Define the loss and condition the model on data.
-    loss = nn.EvidenceLowerBoundLoss()
-    conditioned = condition(model, state.subset("kappa"), y=y)
+    loss = mininf.nn.EvidenceLowerBoundLoss()
+    conditioned = mininf.condition(model, state.subset("kappa"), y=y)
 
     # Optimize the parameters and draw samples from the approximate posterior.
-    for _ in range(3 if "CI" in os.environ else 1_500):
+    for _ in range(3 if mininf.util.IN_CI else 1_500):
         optimizer.zero_grad()
         loss(conditioned, approximation()).backward()
         optimizer.step()

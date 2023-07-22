@@ -10,3 +10,4 @@ jupyter
 jupytext
 scipy
 sphinx
+twine

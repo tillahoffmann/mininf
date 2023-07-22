@@ -29,5 +29,7 @@ jobs:
       - name: Package the code.
         run: make package
       - name: Publish to PyPI.
+        env:
+          TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: make publish

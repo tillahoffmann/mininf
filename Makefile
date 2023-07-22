@@ -27,4 +27,4 @@ package :
 	twine check dist/*.tar.gz
 
 publish : package
-	twine upload --username=__token__ dist/*.tar.gz
+	twine upload --skip-existing --username=__token__ dist/*.tar.gz

@@ -11,7 +11,8 @@ kernelspec:
   name: python3
 ---
 
-# mininf [![](https://github.com/tillahoffmann/mininf/actions/workflows/main.yaml/badge.svg)](https://github.com/tillahoffmann/mininf/actions/workflows/main.yaml)
+# mininf [![](https://github.com/tillahoffmann/mininf/actions/workflows/main.yaml/badge.svg)](https://github.com/tillahoffmann/mininf/actions/workflows/main.yaml) [![Documentation Status](https://readthedocs.org/projects/mininf/badge/?version=latest)](https://mininf.readthedocs.io/en/latest/?badge=latest)
+
 
 mininf is a minimal library to infer the parameters of probabilistic programs and make predictions.
 

@@ -346,7 +346,8 @@ def test_log_prob_batched(caplog: pytest.LogCaptureFixture) -> None:
     distribution = torch.distributions.Normal(0, 1)
 
     def model(batch_shape):
-        mininf.sample("x", distribution, (14, 9), batch_shape=batch_shape)
+        with mininf.batch(batch_shape):
+            mininf.sample("x", distribution, (14, 9))
 
     # Batching along one dimension.
     x = distribution.sample((7, 9))

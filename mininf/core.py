@@ -136,12 +136,12 @@ class TracerMixin(SingletonContextMixin):
         self._validate_parameters = _validate_parameters
 
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_shape: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None) -> torch.Tensor:
         raise NotImplementedError
 
     def _assert_valid_parameter(self, value: torch.Tensor | None, name: str,
                                 distribution: torch.distributions.Distribution,
-                                sample_shape: OptionalSize, batch_shape: OptionalSize) \
+                                sample_shape: OptionalSize) \
             -> torch.Tensor | None:
         if not self._validate_parameters:
             return value
@@ -151,7 +151,7 @@ class TracerMixin(SingletonContextMixin):
 
         # Normalize the batch dimensions and sample shapes. Then verify batch dimensions are not
         # larger than the sample shape because we cannot batch along dimensions that are not iid.
-        batch_shape = _normalize_shape(batch_shape)
+        batch_shape = batch.get_shape()
         sample_shape = _normalize_shape(sample_shape)
         actual_batch_shape = sample_shape + distribution.batch_shape
         if len(batch_shape) > len(actual_batch_shape):
@@ -191,22 +191,22 @@ class SampleTracer(TracerMixin):
     Draw samples from a distribution.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_shape: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None) -> torch.Tensor:
         sample_shape = _normalize_shape(sample_shape)
         value = state.get(name)
         if value is None:
             value = distribution.sample(sample_shape)
             state[name] = value
-        self._assert_valid_parameter(value, name, distribution, sample_shape, batch_shape)
+        self._assert_valid_parameter(value, name, distribution, sample_shape)
         return value
 
 
-class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch.Size]]):
+class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size]]):
     """
     Evaluate the log probability of a state under the model.
     """
     def sample(self, state: State, name: str, distribution: Distribution,
-               sample_shape: OptionalSize = None, batch_shape: OptionalSize = None) -> torch.Tensor:
+               sample_shape: OptionalSize = None) -> torch.Tensor:
         if isinstance(distribution, Value):
             return state.get(name, distribution.value)
         if name in self:
@@ -216,8 +216,7 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch
         if value is None:
             raise ValueError(f"Cannot evaluate log probability; variable '{name}' is missing. Did "
                              "you forget to condition on observed data?")
-        self._assert_valid_parameter(value, name, distribution, sample_shape,
-                                     _normalize_shape(batch_shape))
+        self._assert_valid_parameter(value, name, distribution, sample_shape)
 
         # If the tensor is masked, we need to disable the internal validation of the sample and
         # handle the mask explicitly.
@@ -232,8 +231,9 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch
             log_prob = torch.masked.as_masked_tensor(log_prob, value.get_mask())  # type: ignore
         else:
             log_prob = distribution.log_prob(value)
-        shape = _normalize_shape(sample_shape) + distribution.batch_shape + distribution.event_shape
-        self[name] = (log_prob, cast(torch.Size, shape), _normalize_shape(batch_shape))
+
+        batch_shape = batch.get_shape()
+        self[name] = (log_prob, batch_shape)
         return value  # type: ignore
 
     @property
@@ -250,7 +250,7 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size, torch
         Returns:
             Contribution to the total log probability.
         """
-        value, shape, batch_shape = self[name]
+        value, batch_shape = self[name]
         if isinstance(value, torch.masked.MaskedTensor):
             if batch_shape:
                 raise ValueError("Batch dimensions are not supported for masked data.")
@@ -290,8 +290,8 @@ def with_active_state(func: Callable) -> Callable:
 
 
 @with_active_state
-def sample(state: State, name: str, distribution: Distribution, sample_shape: OptionalSize = None,
-           batch_shape: OptionalSize = None) -> torch.Tensor:
+def sample(state: State, name: str, distribution: Distribution, sample_shape: OptionalSize = None) \
+        -> torch.Tensor:
     """
     Draw a sample of a random variable.
 
@@ -299,10 +299,6 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
         name: Name of the random variable to sample.
         distribution: Distribution to sample from.
         sample_shape: Shape of the variables drawn as independent identically distributed samples.
-        batch_shape: Expected shape for the leading dimensions of the sample. If :code:`batch_shape`
-            differs from :code:`sample_shape + distribution.batch_shape`, contributions to the log
-            probability are scaled to obtain an unbiased estimate of the log probability as if the
-            shapes matched.
 
     Returns:
         A sample from the distribution with shape
@@ -321,7 +317,7 @@ def sample(state: State, name: str, distribution: Distribution, sample_shape: Op
     tracer = TracerMixin.get_instance()
     if tracer is None:
         tracer = SampleTracer()
-    return tracer.sample(state, name, distribution, sample_shape, batch_shape)
+    return tracer.sample(state, name, distribution, sample_shape)
 
 
 def condition(model: Callable, values: TensorDict | None = None, *, _strict: bool = True,
@@ -580,3 +576,27 @@ def broadcast_samples(model: Callable, states: State | None = None, **params: to
             model()
         results.append(value)
     return transpose_states(results)
+
+
+class batch(SingletonContextMixin):
+    """
+    Batch log probability contributions.
+
+    Args:
+        shape: Leading dimensions of random variables to treat as a batch.
+    """
+    SINGLETON_KEY = "batch"
+
+    def __init__(self, shape: torch.Size | int) -> None:
+        self.shape = _normalize_shape(shape)
+
+    @classmethod
+    def get_shape(cls) -> torch.Size:
+        """
+        Get the current batch shape.
+
+        Return:
+            Current batch shape.
+        """
+        instance = cls.get_instance()
+        return torch.Size() if instance is None else instance.shape

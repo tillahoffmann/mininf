@@ -1,4 +1,4 @@
-.PHONY: all docs doctests lint tests
+.PHONY: all docs doctests lint package publish tests
 
 all : tests lint docs doctests
 
@@ -21,3 +21,10 @@ doctests :
 
 clean :
 	rm -rf docs/_build docs/.jupyter_cache .coverage* .pytest_cache
+
+package :
+	python setup.py sdist
+	twine check dist/*.tar.gz
+
+publish : package
+	twine upload --username=__token__ dist/*.tar.gz

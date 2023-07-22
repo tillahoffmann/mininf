@@ -26,3 +26,8 @@ jobs:
         run: make docs
       - name: Run the doctests.
         run: make doctests
+      - name: Package the code.
+        run: make package
+      - name: Publish to PyPI.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: make publish

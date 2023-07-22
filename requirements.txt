@@ -42,7 +42,9 @@ beautifulsoup4==4.12.2
     #   nbconvert
     #   pydata-sphinx-theme
 bleach==6.0.0
-    # via nbconvert
+    # via
+    #   nbconvert
+    #   readme-renderer
 certifi==2023.5.7
     # via requests
 cffi==1.15.1
@@ -69,6 +71,7 @@ docutils==0.19
     # via
     #   myst-parser
     #   pydata-sphinx-theme
+    #   readme-renderer
     #   sphinx
 exceptiongroup==1.1.2
     # via
@@ -96,7 +99,9 @@ imagesize==1.4.1
 importlib-metadata==6.7.0
     # via
     #   jupyter-cache
+    #   keyring
     #   myst-nb
+    #   twine
 iniconfig==2.0.0
     # via pytest
 ipykernel==6.24.0
@@ -123,6 +128,8 @@ ipywidgets==8.0.6
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
+jaraco-classes==3.3.0
+    # via keyring
 jedi==0.18.2
     # via ipython
 jinja2==3.1.2
@@ -181,6 +188,8 @@ jupyterlab-widgets==3.0.7
     # via ipywidgets
 jupytext==1.14.7
     # via -r requirements.in
+keyring==24.2.0
+    # via twine
 kiwisolver==1.4.4
     # via matplotlib
 markdown-it-py==2.2.0
@@ -188,6 +197,7 @@ markdown-it-py==2.2.0
     #   jupytext
     #   mdit-py-plugins
     #   myst-parser
+    #   rich
 markupsafe==2.1.3
     # via
     #   jinja2
@@ -208,6 +218,8 @@ mdurl==0.1.2
     # via markdown-it-py
 mistune==3.0.1
     # via nbconvert
+more-itertools==9.1.0
+    # via jaraco-classes
 mpmath==1.3.0
     # via sympy
 mypy==1.4.1
@@ -280,6 +292,8 @@ pickleshare==0.7.5
     # via ipython
 pillow==10.0.0
     # via matplotlib
+pkginfo==1.9.6
+    # via twine
 platformdirs==3.8.0
     # via jupyter-core
 pluggy==1.2.0
@@ -317,6 +331,8 @@ pygments==2.15.1
     #   nbconvert
     #   pydata-sphinx-theme
     #   qtconsole
+    #   readme-renderer
+    #   rich
     #   sphinx
 pyparsing==3.1.0
     # via matplotlib
@@ -354,16 +370,27 @@ qtconsole==5.4.3
     # via jupyter
 qtpy==2.3.1
     # via qtconsole
+readme-renderer==40.0
+    # via twine
 requests==2.31.0
-    # via sphinx
+    # via
+    #   requests-toolbelt
+    #   sphinx
+    #   twine
+requests-toolbelt==1.0.0
+    # via twine
 rfc3339-validator==0.1.4
     # via
     #   jsonschema
     #   jupyter-events
+rfc3986==2.0.0
+    # via twine
 rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
+rich==13.4.2
+    # via twine
 scipy==1.11.1
     # via -r requirements.in
 send2trash==1.8.2
@@ -452,6 +479,8 @@ traitlets==5.9.0
     #   nbformat
     #   notebook
     #   qtconsole
+twine==4.0.2
+    # via -r requirements.in
 typing-extensions==4.7.1
     # via
     #   mypy
@@ -463,7 +492,9 @@ typing-extensions==4.7.1
 uri-template==1.3.0
     # via jsonschema
 urllib3==2.0.3
-    # via requests
+    # via
+    #   requests
+    #   twine
 wcwidth==0.2.6
     # via prompt-toolkit
 webcolors==1.13

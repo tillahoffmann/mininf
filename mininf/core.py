@@ -218,6 +218,9 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size]]):
                              "you forget to condition on observed data?")
         self._assert_valid_parameter(value, name, distribution, sample_shape)
 
+        if no_log_prob.get_instance():
+            return value
+
         # If the tensor is masked, we need to disable the internal validation of the sample and
         # handle the mask explicitly.
         if isinstance(value, torch.masked.MaskedTensor):
@@ -600,3 +603,10 @@ class batch(SingletonContextMixin):
         """
         instance = cls.get_instance()
         return torch.Size() if instance is None else instance.shape
+
+
+class no_log_prob(SingletonContextMixin):
+    """
+    Do not evaluate contributions to the log probability.
+    """
+    SINGLETON_KEY = "no_log_prob"

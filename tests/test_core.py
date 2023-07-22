@@ -387,3 +387,18 @@ def test_log_prob_batched(caplog: pytest.LogCaptureFixture) -> None:
             pytest.raises(ValueError, match="not supported for masked data"):
         model([7])
         log_prob.total
+
+
+def test_no_log_prob() -> None:
+    def model():
+        x = mininf.sample("x", torch.distributions.Normal(0, 1), (3, 4))
+        with mininf.no_log_prob():
+            y = mininf.sample("y", torch.distributions.Gamma(2, 2), (4, 5))
+        return x @ y
+
+    with mininf.State():
+        z = model()
+
+        with mininf.core.LogProbTracer() as log_prob:
+            torch.testing.assert_close(model(), z)
+        assert "y" not in log_prob

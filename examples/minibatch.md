@@ -16,7 +16,7 @@ kernelspec:
 Sometimes data do not fit in memory or evaluating the evidence lower bound on the entire dataset for each optimization step can be computationally prohibitive. mininf supports minibatch variational inference so data can be split into smaller chunks for optimization. Naively splitting the data does not target the correct posterior distribution: Using smaller batches without correction assigns undue importance to priors. mininf corrects for this bias by scaling the contributions to the joint distribution. In this example, we consider a linear regression model with minibatch inference.
 
 ```{code-cell} ipython3
-from mininf import batch, sample, State
+from mininf import batch, no_log_prob, sample, State
 import torch
 from torch.distributions import Gamma, Normal
 
@@ -26,7 +26,8 @@ def model():
     p = 5
     theta = sample("theta", Normal(0, 1), sample_shape=p)
     with batch(n):
-        X = sample("X", Normal(0, 1), sample_shape=(n, p))
+        with no_log_prob():  # We don't need to evaluate the log probability of the covariates.
+            X = sample("X", Normal(0, 1), sample_shape=(n, p))
         y = sample("y", Normal(X @ theta, 1))
 
 

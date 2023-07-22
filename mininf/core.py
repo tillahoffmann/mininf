@@ -72,7 +72,7 @@ class SingletonContextMixin:
             strict: Raise an error if no context is active.
 
         Returns:
-            The active context or `None` if no context is active.
+            The active context or :code:`None` if no context is active.
         """
         key = cls._assert_singleton_key()
         active = cls.INSTANCES.get(key)
@@ -280,7 +280,7 @@ def with_active_state(func: Callable) -> Callable:
         func: Callable taking a :class:`.State` object as its first argument.
 
     Returns:
-        Callable wrapping `func` which ensures a state is active.
+        Callable wrapping :code:`func` which ensures a state is active.
     """
     @ft.wraps(func)
     def _wrapper(*args, **kwargs) -> Any:
@@ -331,14 +331,14 @@ def condition(model: Callable, values: TensorDict | None = None, *, _strict: boo
     .. note::
 
         The first conditioning statement takes precedence if a parameter is conditioned multiple
-        times and `_strict` is `False`. If `_strict` is `True`, conditioning multiple times raises
-        an exception.
+        times and :code:`_strict` is :code:`False`. If :code:`_strict` is :code:`True`, conditioning
+        multiple times raises an exception.
 
     Args:
         model: Model to condition.
         values: Values to condition on as a dictionary of tensors.
-        _strict: Enforce that each parameter is conditioned on at most once (prefixed with `_` to
-            avoid possible conflicts with states having a `strict` key).
+        _strict: Enforce that each parameter is conditioned on at most once (prefixed with :code:`_`
+            to avoid possible conflicts with states having a :code:`strict` key).
         **kwargs: Values to condition on as keyword arguments.
 
     Returns:
@@ -587,6 +587,20 @@ class batch(SingletonContextMixin):
 
     Args:
         shape: Leading dimensions of random variables to treat as a batch.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import batch, sample
+            >>> import torch
+
+            >>> def model():
+            ...     with batch(10):
+            ...         # Contributions to the log probability will be scaled if the leading
+            ...         # dimension of `x` does not have 10 elements.
+            ...         sample("x", torch.distributions.Normal(0, 1), 10)
+            >>> model()
     """
     SINGLETON_KEY = "batch"
 
@@ -608,5 +622,18 @@ class batch(SingletonContextMixin):
 class no_log_prob(SingletonContextMixin):
     """
     Do not evaluate contributions to the log probability.
+
+    Example:
+
+        .. doctest::
+
+            >>> from mininf import no_log_prob, sample
+            >>> import torch
+
+            >>> def model():
+            ...     with no_log_prob():
+            ...         # The log probability of this sample statement will not be evaluated.
+            ...         sample("x", torch.distributions.Normal(0, 1))
+            >>> model()
     """
     SINGLETON_KEY = "no_log_prob"

@@ -25,7 +25,7 @@ def model():
     n = 500
     p = 5
     theta = sample("theta", Normal(0, 1), sample_shape=p)
-    with batch(n):
+    with batch(n):  # The leading dimension of `X` and `y` should have `n` elements.
         with no_log_prob():  # We don't need to evaluate the log probability of the covariates.
             X = sample("X", Normal(0, 1), sample_shape=(n, p))
         y = sample("y", Normal(X @ theta, 1))
@@ -36,7 +36,9 @@ with State() as example:
     model()
 ```
 
-We will fit two approximations: One optimized using full-batch optimization and one using minibatch optimization. Let us start with the former.
+The call to {func}`~mininf.batch` in the model declares that the leading dimension of {code}`X` and {code}`y` should have {code}`n` elements. If the number of elements differs, contributions to the log probability will be scaled by the relative size to ensure our estimate is not affected by the size of the minibatch. We further optimize inference using the {func}`~mininf.no_log_prob` context to avoid evaluating the log probability of the features {code}`X`. While it is useful to declare the features as part of the model for simulations, optimizing the posterior approximation does not dependen on the log probability of the features.
+
+Here, we will fit two approximations: One optimized using full-batch optimization and one using minibatch optimization. Let us start with the former.
 
 ```{code-cell} ipython3
 from mininf import condition

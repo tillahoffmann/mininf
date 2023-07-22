@@ -16,7 +16,7 @@ kernelspec:
 Sometimes data do not fit in memory or evaluating the evidence lower bound on the entire dataset for each optimization step can be computationally prohibitive. mininf supports minibatch variational inference so data can be split into smaller chunks for optimization. Naively splitting the data does not target the correct posterior distribution: Using smaller batches without correction assigns undue importance to priors. mininf corrects for this bias by scaling the contributions to the joint distribution. In this example, we consider a linear regression model with minibatch inference.
 
 ```{code-cell} ipython3
-from mininf import batch, no_log_prob, sample, State
+import mininf
 import torch
 from torch.distributions import Gamma, Normal
 
@@ -24,15 +24,17 @@ from torch.distributions import Gamma, Normal
 def model():
     n = 500
     p = 5
-    theta = sample("theta", Normal(0, 1), sample_shape=p)
-    with batch(n):  # The leading dimension of `X` and `y` should have `n` elements.
-        with no_log_prob():  # We don't need to evaluate the log probability of the covariates.
-            X = sample("X", Normal(0, 1), sample_shape=(n, p))
-        y = sample("y", Normal(X @ theta, 1))
+    theta = mininf.sample("theta", Normal(0, 1), sample_shape=p)
+    # The leading dimension of `X` and `y` should have `n` elements.
+    with mininf.batch(n):
+        # We don't need to evaluate the log probability of the covariates.
+        with mininf.no_log_prob():
+            X = mininf.sample("X", Normal(0, 1), sample_shape=(n, p))
+        y = mininf.sample("y", Normal(X @ theta, 1))
 
 
 torch.manual_seed(0)  # For reproducibility of this example.
-with State() as example:
+with mininf.State() as example:
     model()
 ```
 
@@ -41,22 +43,18 @@ The call to {func}`~mininf.batch` in the model declares that the leading dimensi
 Here, we will fit two approximations: One optimized using full-batch optimization and one using minibatch optimization. Let us start with the former.
 
 ```{code-cell} ipython3
-from mininf import condition
-from mininf.nn import EvidenceLowerBoundLoss, ParameterizedDistribution
-
-
 # Initialize the parametric posterior approximation.
 loc0 = 1e-3 * torch.randn(5)
 scale0 = 1e-3 * torch.randn(5).exp()
-full = ParameterizedDistribution(Normal, loc=loc0.clone(), scale=scale0.clone())
+full = mininf.nn.ParameterizedDistribution(Normal, loc=loc0.clone(), scale=scale0.clone())
 
 # Condition on the full dataset and optimize the evidence lower bound.
-conditioned = condition(model, example.subset("X", "y"))
+conditioned = mininf.condition(model, example.subset("X", "y"))
 optimizer = torch.optim.Adam(full.parameters(), lr=0.01)
-loss = EvidenceLowerBoundLoss()
+loss = mininf.nn.EvidenceLowerBoundLoss()
 
 full_loss_values = []
-for _ in range(250):
+for _ in range(3 if mininf.util.IN_CI else 250):
     optimizer.zero_grad()
     loss_value = loss(conditioned, {"theta": full()})
     loss_value.backward()
@@ -71,18 +69,18 @@ from torch.utils.data import DataLoader, TensorDataset
 
 
 # Initialize the parametric posterior approximation.
-mini = ParameterizedDistribution(Normal, loc=loc0.clone(), scale=scale0.clone())
+mini = mininf.nn.ParameterizedDistribution(Normal, loc=loc0.clone(), scale=scale0.clone())
 
 # Iterate over minibatches and condition on the minibatch at each iteration. We use a data loader to
 # create minibatches of data.
 optimizer = torch.optim.Adam(mini.parameters(), lr=0.01)
-loss = EvidenceLowerBoundLoss()
+loss = mininf.nn.EvidenceLowerBoundLoss()
 loader = DataLoader(TensorDataset(example["X"], example["y"]), batch_size=10, shuffle=True)
 
 mini_loss_values = []
-for _ in range(25):
+for _ in range(3 if mininf.util.IN_CI else 25):
     for X, y in loader:
-        conditioned = condition(model, X=X, y=y)
+        conditioned = mininf.condition(model, X=X, y=y)
         optimizer.zero_grad()
         loss_value = loss(conditioned, {"theta": mini()})
         loss_value.backward()

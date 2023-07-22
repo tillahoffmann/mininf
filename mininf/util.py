@@ -1,10 +1,13 @@
 import numbers
+import os
 import torch
 from torch.distributions.constraints import Constraint
-from typing import Any, Dict, TypeVar
+from typing import Any, cast, Dict, TypeVar
 
 
-OptionalSize = torch.Size | int | None
+IN_CI = "CI" in os.environ
+
+OptionalSize = torch.Size | torch.Tensor | int | None
 TensorDict = Dict[str, torch.Tensor]
 T = TypeVar("T", bound=torch.Tensor)
 
@@ -15,12 +18,11 @@ def _normalize_shape(shape: OptionalSize) -> torch.Size:
     """
     if shape is None:
         return torch.Size()
-    elif isinstance(shape, int):
-        return torch.Size([shape])
-    elif isinstance(shape, torch.Size):
+    if isinstance(shape, torch.Size):
         return shape
-    else:
-        return torch.Size(shape)
+    if isinstance(shape, int) or (torch.is_tensor(shape) and shape.ndim == 0):
+        return torch.Size([cast(int, shape)])
+    return torch.Size(shape)
 
 
 def _format_dict_compact(value: Dict[str, Any | torch.Tensor], id_: int | None = None,

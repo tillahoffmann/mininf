@@ -103,7 +103,7 @@ def test_repr() -> None:
 def test_condition() -> None:
     def model() -> None:
         x = mininf.sample("x", torch.distributions.Uniform(0, 1))
-        mininf.sample("y", torch.distributions.Gamma(2, 2), (3,))
+        mininf.sample("y", torch.distributions.Gamma(2, 2), 3)
         return x
 
     conditioned = mininf.condition(model, x=0.3)

@@ -307,7 +307,7 @@ def test_value_support() -> None:
     def model():
         mininf.value("x", support=constraints.nonnegative)
 
-    with pytest.raises(ValueError, match=r"is not in the support of Value\(shape="):
+    with pytest.raises(ValueError, match=r"is not in the support of Value\(support=GreaterThanEq"):
         mininf.condition(model, x=-2)()
 
 
@@ -398,6 +398,30 @@ def test_log_prob_batched(caplog: pytest.LogCaptureFixture) -> None:
             pytest.raises(ValueError, match="not supported for masked data"):
         model([7])
         log_prob.total
+
+
+def test_adaptive_batch_shape() -> None:
+    def model():
+        n = mininf.value("n")
+        with mininf.batch(n):
+            i = mininf.value("i", shape=n)
+            predictor = mininf.sample("x", torch.distributions.Normal(torch.ones(n), 1))[i]
+            mininf.sample("y", torch.distributions.Normal(predictor, 1))
+        return y
+
+    n = 7
+    x = torch.randn(n)
+    y = torch.randn(n) + x
+    i = torch.as_tensor([2, 3, 6])
+    with mininf.State(n=n, x=x, y=y[i], i=i), mininf.core.LogProbTracer() as log_prob:
+        model()
+
+    torch.testing.assert_close(log_prob.contribution("x"),
+                               torch.distributions.Normal(1, 1).log_prob(x).sum())
+    torch.testing.assert_close(
+        log_prob.contribution("y"),
+        torch.distributions.Normal(x[i], 1).log_prob(y[i]).sum() * n / i.numel()
+    )
 
 
 def test_no_log_prob() -> None:

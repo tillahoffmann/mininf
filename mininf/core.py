@@ -176,8 +176,11 @@ class TracerMixin(SingletonContextMixin):
         except ValueError as ex:
             formatted_sizes = [f"{size}*" for size in batch_shape]
             formatted_sizes.extend(str(size) for size in shape[len(batch_shape):])
-            raise ValueError(f"Expected shape ({', '.join(formatted_sizes)}) for parameter "
-                             f"'{name}' but got {tuple(value.shape)}.") from ex
+            formatted_shape = ", ".join(formatted_sizes)
+            if len(formatted_sizes) == 1:
+                formatted_shape = formatted_shape + ","
+            raise ValueError(f"Expected shape ({formatted_shape}) for parameter '{name}' but got "
+                             f"{tuple(value.shape)}.") from ex
 
         # Check the support of the value.
         support = cast(torch.distributions.constraints.Constraint, distribution.support)
@@ -208,7 +211,9 @@ class LogProbTracer(TracerMixin, Dict[str, Tuple[torch.Tensor, torch.Size]]):
     def sample(self, state: State, name: str, distribution: Distribution,
                sample_shape: OptionalSize = None) -> torch.Tensor:
         if isinstance(distribution, Value):
-            return state.get(name, distribution.value)
+            value = state.get(name, distribution.value)
+            self._assert_valid_parameter(value, name, distribution, sample_shape)
+            return value
         if name in self:
             raise RuntimeError(f"Log probability has already been evaluated for '{name}'. Did you "
                                "call `sample` twice with the same variable name?")

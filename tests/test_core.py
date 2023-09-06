@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import torch
 from torch.distributions import constraints
+from typing import Type
 
 
 def test_singleton_state_no_key() -> None:
@@ -308,6 +309,16 @@ def test_value_support() -> None:
 
     with pytest.raises(ValueError, match=r"is not in the support of Value\(shape="):
         mininf.condition(model, x=-2)()
+
+
+@pytest.mark.parametrize("tracer_type", [mininf.core.SampleTracer, mininf.core.LogProbTracer])
+def test_value_shape_validation(tracer_type: Type[mininf.core.TracerMixin]) -> None:
+    def model():
+        return mininf.value("x", shape=5)
+
+    with tracer_type(), mininf.State(x=torch.arange(3)), \
+            pytest.raises(ValueError, match=r"Expected shape \(5,\)"):
+        model()
 
 
 def test_broadcast_samples():

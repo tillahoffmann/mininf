@@ -393,7 +393,6 @@ class Value(Distribution):
 
     Args:
         value: Default value.
-        shape: Target shape of the value if set by conditioning (defaults to a scalar).
         support: Support of the target value.
 
     Example:
@@ -414,13 +413,10 @@ class Value(Distribution):
               ...
             ValueError: Parameter 'n' is not in the support of Value(...).
     """
-    def __init__(self, value: torch.Tensor | None = None, shape: torch.Size | None = None,
-                 support: Constraint | None = None, validate_args: bool | None = None):
+    def __init__(self, value: torch.Tensor | None = None, support: Constraint | None = None,
+                 validate_args: bool | None = None):
         value = maybe_as_tensor(value)
-        if shape is None and value is not None:
-            shape = value.shape
-        shape = _normalize_shape(shape)
-        super().__init__(torch.Size(), shape, validate_args)
+        super().__init__(torch.Size(), torch.Size(), validate_args)
 
         self.value = value
         self._support = support or torch.distributions.constraints.real
@@ -436,7 +432,7 @@ class Value(Distribution):
 
     def sample(self, sample_shape):
         if self.value is None:
-            raise ValueError("No default value given. Did you mean to specify the value by "
+            raise ValueError("No default value given. Did you mean to specify one value by "
                              "conditioning?")
         return self.value
 
@@ -446,7 +442,6 @@ class Value(Distribution):
     def __repr__(self) -> str:
         attributes = {
             "value": self.value,
-            "shape": self.event_shape,
             "support": self.support,
         }
         formatted = ', '.join([f'{k}={v}' for k, v in attributes.items() if v is not None])
@@ -491,7 +486,10 @@ def value(name: str, value: torch.Tensor | None = None, shape: torch.Size | None
               ...
             ValueError: Parameter 'n' is not in the support of Value(...).
     """
-    return sample(name, Value(value, shape, support, validate_args))
+    if shape is None and value is not None:
+        value = torch.as_tensor(value)
+        shape = value.shape
+    return sample(name, Value(value, support, validate_args), shape)
 
 
 def _assert_same_batch_size(state: State) -> int:
